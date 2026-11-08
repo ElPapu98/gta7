@@ -1,6 +1,6 @@
 # GTA7.WASM — Living City Lab
 
-Original open-world simulation research project. This repository is **pre-alpha**, not a GTA VI-scale game or an official Rockstar product. It starts with an observable, deterministic citizen simulation and a 2D systems-debugger; the production renderer is a later phase.
+Original open-world simulation research project. This repository is **pre-alpha**, not a GTA VI-scale game or an official Rockstar product. Version 0.2 adds an interactive, procedural 3D city preview powered by Three.js/WebGL 2. The simulation remains a JavaScript reference; Rust/WASM integration remains a future milestone.
 
 ## Run the verified browser prototype
 
@@ -16,7 +16,9 @@ npm test
 
 The `.github/workflows/pages.yml` workflow runs tests and deploys a static preview on every push to `main`. In **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. Public project URL: `https://elpapu98.github.io/gta7/`. The workflow publishes only browser assets; the Rust native/WASM build remains experimental.
 
-Move with WASD/arrow keys; Shift accelerates; Space generates a simulated vehicle-theft incident; mouse wheel zooms; Pause freezes time. Use the sidebar to change population (applies after reset), watch witnesses and police reports, and export a JSON snapshot.
+Move with WASD/arrow keys; hold Shift to run; drag the mouse to rotate the camera; mouse wheel zooms. Approach the golden car and press E to enter/exit; drive with WASD. Change the camera, lighting and traffic from the controls. Space records a simulated incident in the underlying reference simulation.
+
+The 3D scene loads Three.js 0.170.0 as a pinned ES module from jsDelivr. An internet connection is required. It uses procedural materials, geometry and lighting without proprietary game assets; this is a **stylized architectural preview**, not photorealistic AAA content.
 
 ## Rust / WebAssembly core (experimental, not yet wired to browser)
 
@@ -35,7 +37,7 @@ The WASM artifact created by the second command is `pkg/gta7_core_bg.wasm`. Rena
 | --- | --- | --- |
 | Citizen simulation | JS deterministic reference | Rust `gta7-core`, compiled to WASM and native |
 | Simulation clock | Fixed 30 Hz | Fixed tick, rollback/replay logs |
-| Graphics | Canvas 2D city diagnostics | Bevy / wgpu / WebGPU with a native target |
+| Graphics | Three.js WebGL 2 procedural district | Bevy / wgpu / WebGPU with a native target |
 | Physics | Point navigation prototype | Rapier 3D with authoritative collision |
 | Navigation | Direct destinations | Hierarchical street graph, navmesh and steering |
 | AI | Home/work/flee, individual event memory | Needs, relationships, witnesses, evidence and investigation |
@@ -66,7 +68,7 @@ INPUT / GAMEPLAY           RENDERER (WebGPU/native)
 
 ## Milestones and acceptance gates
 
-1. **M0 / Research prototype (this repository):** deterministic citizen agents, time-based routines, witnessing, delayed incident reports, movement and snapshot. Browser and JS tests verified.
+1. **M0 / Research prototype (this repository):** deterministic citizen agents, time-based routines, witnessing, delayed incident reports, movement and snapshot; procedural 3D streets and buildings, third-person navigation and one driveable vehicle. Browser simulation tests verified.
 2. **M1 / Rust parity:** define serializable command and snapshot schema, reproduce golden test traces across JS/Rust, replace JS simulation with actual WASM, exercise native Rust CLI/headless build.
 3. **M2 / 3D district:** one 500 m × 500 m sector with streaming terrain/buildings, third-person controller, vehicles and interaction; profile the CPU/GPU independently.
 4. **M3 / Urban behavior:** graph routing, jobs, services, conversations, police evidence; record replayable scenarios and performance benchmarks.
@@ -82,7 +84,8 @@ INPUT / GAMEPLAY           RENDERER (WebGPU/native)
 
 ## Known limitations
 
-- This is a systems-debugging 2D map, not a 3D open-world game.
+- The 3D presentation is a procedural visual prototype, not a complete open-world game or a photorealistic production environment.
+- The current rendering implementation uses WebGL 2/Three.js, not WebGPU; the production Rust/WGPU architecture is future work.
 - Agents currently travel in straight lines, may pass through structures and don't have obstacle avoidance.
 - Report timing is simulated and police dispatch is a recorded event, not a physical pursuing police unit.
 - `Rust` crate is an initial API sketch with a smaller behavior set than the browser reference.
@@ -94,7 +97,8 @@ INPUT / GAMEPLAY           RENDERER (WebGPU/native)
 ```text
 gta7/
   index.html                    Browser diagnostics
-  src/main.js                   Canvas renderer + controls
+  src/scene3d.js                Procedural Three.js environment + 3D controls
+  src/main.js                   Retained legacy 2D diagnostics renderer
   src/simulation.js             Deterministic JS reference
   src/style.css                 UI
   tests/simulation.test.mjs     Automated invariants
