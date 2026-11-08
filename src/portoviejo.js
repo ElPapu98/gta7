@@ -27,6 +27,19 @@ export function classifyWays(elements, origin = PORTOVIEJO) {
   return { roads, buildings, parks, waters };
 }
 
+export function classifyGeoJSON(featureCollection, origin = PORTOVIEJO) {
+  const ways=[];
+  for(const feature of featureCollection.features || []) {
+    const geometry=feature.geometry || {};
+    const coords=geometry.type==='LineString' ? geometry.coordinates
+      : geometry.type==='Polygon' ? geometry.coordinates?.[0]
+      : geometry.type==='MultiPolygon' ? geometry.coordinates?.[0]?.[0] : null;
+    if(!Array.isArray(coords)||coords.length<2)continue;
+    ways.push({type:'way',tags:feature.properties||{},geometry:coords.map(([lon,lat])=>({lon,lat}))});
+  }
+  return classifyWays(ways,origin);
+}
+
 export function buildingHeight(tags) {
   const explicit = Number.parseFloat(tags.height);
   if (Number.isFinite(explicit) && explicit > 1 && explicit < 250) return explicit;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { project, classifyWays, roadWidth, buildingHeight, CITY_CONFIG } from '../src/portoviejo.js';
+import { project, classifyWays, classifyGeoJSON, roadWidth, buildingHeight, CITY_CONFIG } from '../src/portoviejo.js';
 
 test('geographic origin maps to scene origin in metres', () => {
   assert.equal(project(-1.0545, -80.4545).x, 0);
@@ -28,4 +28,16 @@ test('Quito has its own geographic origin and reproducible projection', () => {
   assert.ok(Math.abs(project(q.lat, q.lon, q).x) < .001);
   assert.ok(Math.abs(project(q.lat, q.lon, q).z) < .001);
   assert.ok(project(q.lat + .001, q.lon, q).z < 0);
+});
+
+test('Geofabrik polygon and road GeoJSON become playable coordinates', () => {
+  const origin=CITY_CONFIG.quito;
+  const data=classifyGeoJSON({features:[
+    {properties:{highway:'residential'},geometry:{type:'LineString',coordinates:[[-78.4865,-.1865],[-78.4860,-.1865]]}},
+    {properties:{building:'yes',height:'12'},geometry:{type:'Polygon',coordinates:[[[-78.4865,-.1865],[-78.4864,-.1865],[-78.4864,-.1864],[-78.4865,-.1865]]]}}
+  ]},origin);
+  assert.equal(data.roads.length,1);
+  assert.equal(data.buildings.length,1);
+  assert.ok(data.roads[0].points[1].x>50);
+  assert.equal(buildingHeight(data.buildings[0].tags),12);
 });

@@ -24,13 +24,19 @@ jobs:
       - run: npm test
       - name: Stage licensed PBR materials, HDRI and 3D vehicle
         run: npm run assets
-      - name: Download and cache open city geometry
-        run: node tools/build-city-map.mjs
+      - name: Prepare verified real Quito geometry from Geofabrik OSM
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          curl --fail --location --retry 3 --retry-delay 5 --output /tmp/ecuador.osm.pbf https://download.geofabrik.de/south-america/ecuador-latest.osm.pbf
+          osmium extract --bbox=-78.498,-0.198,-78.475,-0.175 --strategy=complete_ways -o /tmp/quito.osm.pbf /tmp/ecuador.osm.pbf
+          osmium export -f geojson -o /tmp/quito.geojson /tmp/quito.osm.pbf
+          node tools/build-city-map.mjs /tmp/quito.geojson
       - name: Prepare static site
         run: |
           mkdir -p _site/src
           cp index.html _site/
-          cp index.html _site/v0.12.html
+          cp index.html _site/v0.12.1.html
           cp src/scene3d.js src/portoviejo.js src/terrain.js src/gameplay.js src/main.js src/simulation.js src/asset-stream.js src/controls.js src/character-motor.js src/style.css _site/src/
           cp -r assets _site/assets
           touch _site/.nojekyll
@@ -45,11 +51,12 @@ jobs:
           set -euo pipefail
           base="${{ steps.deployment.outputs.page_url }}"
           for attempt in 1 2 3 4 5; do
-            if curl -fsS "${base}v0.12.html" | grep 'VERSIÓN 0.12.0' >/dev/null; then break; fi
+            if curl -fsS "${base}v0.12.1.html" | grep 'VERSIÓN 0.12.1' >/dev/null; then break; fi
             sleep 3
           done
-          curl -fsS "${base}v0.12.html" | grep 'VERSIÓN 0.12.0' >/dev/null
-          curl -fsS "${base}src/scene3d.js?v=0.12.0" | grep 'fetchCity' >/dev/null
+          curl -fsS "${base}v0.12.1.html" | grep 'VERSIÓN 0.12.1' >/dev/null
+          curl -fsS "${base}src/scene3d.js?v=0.12.1" | grep 'fetchCity' >/dev/null
+          curl -fsSI "${base}assets/maps/quito.json" | grep -i '200' >/dev/null
           curl -fsS "${base}src/portoviejo.js" | grep 'CITY_CONFIG' >/dev/null
           curl -fsS "${base}src/terrain.js" | grep 'loadTerrain' >/dev/null
           curl -fsS "${base}src/controls.js?v=0.10.0" | grep 'toggleTouchSprint' >/dev/null
