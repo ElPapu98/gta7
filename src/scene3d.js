@@ -100,6 +100,17 @@ const roadTexture = texture((g,w,h) => {
 roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping; roadTexture.repeat.set(30, 30);
 const roadMat = new THREE.MeshStandardMaterial({ map: roadTexture, roughness: .96 });
 const geographicAsphalt = std('#e7e7e7', .97);
+// A dry, mottled ground cover is less artificial than a solid green plane.
+const soilTexture = texture((g,w,h)=>{
+  g.fillStyle='#68785b';g.fillRect(0,0,w,h);
+  for(let i=0;i<18000;i++){
+    const v=Math.floor(rand(45,125));
+    g.fillStyle=`rgba(${v},${Math.floor(v*1.16)},${Math.floor(v*.75)},${rand(.09,.38)})`;
+    g.fillRect(rand(0,w),rand(0,h),rand(1,5),rand(1,5));
+  }
+});
+soilTexture.wrapS=soilTexture.wrapT=THREE.RepeatWrapping;soilTexture.repeat.set(90,90);
+const earthMat=new THREE.MeshStandardMaterial({map:soilTexture,roughness:1});
 const signatureStone = std('#f0e6d5',.82);
 
 // Asset-backed PBR materials: procedural maps remain usable if assets are unavailable.
@@ -460,7 +471,7 @@ function installGeographicCity(data, elevationAt = () => 0) {
     groundPositions.setY(i,elevationAt(x,z)-.09);
   }
   cityGroundGeometry.computeVertexNormals();
-  const cityGround = new THREE.Mesh(cityGroundGeometry, std('#84926e'));
+  const cityGround = new THREE.Mesh(cityGroundGeometry, earthMat);
   cityGround.receiveShadow = true; city.add(cityGround);
   const renderArea = points => points.every(p => Math.abs(p.x) < 1400 && Math.abs(p.z) < 1400);
   for (const feature of [...data.parks, ...data.waters]) {
@@ -469,6 +480,10 @@ function installGeographicCity(data, elevationAt = () => 0) {
     const mesh = polygonMesh(feature.points, .035, data.waters.includes(feature) ? water : park,elevationAt(center.x,center.z));
     if (mesh) city.add(mesh);
   }
+  const laneMarks=[],crossingMarks=[];
+  const laneGeometry=new THREE.BoxGeometry(1,1,1);
+  const laneMaterial=new THREE.MeshStandardMaterial({color:'#e9e5d8',roughness:.95,depthWrite:true});
+  const marker=new THREE.Object3D();
   for (const feature of data.roads) {
     if (!renderArea(feature.points)) continue;
     const width = roadWidth(feature.tags.highway);
@@ -483,6 +498,38 @@ function installGeographicCity(data, elevationAt = () => 0) {
       segment.scale.set(width, .16, Math.hypot(length,rise)+.8);
       segment.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(dx,rise,dz).normalize());
       segment.receiveShadow = true; city.add(segment);
+      // Road markings follow the surveyed OSM segments, including terrain grade.
+      // Limit them to the playable high-detail district and batch into one draw call.
+      const local=Math.hypot(segment.position.x,segment.position.z)<300;
+      if(local && width>=6 && length>8 && laneMarks.length<2400){
+        const dashed=!['residential','living_street','service'].includes(feature.tags.highway);
+        const count=dashed?Math.floor(length/8):0;
+        for(let dash=0;dash<count;dash++){
+          const t=(dash+.5)/count,ratio=t*2-1;
+          marker.position.set(segment.position.x+dx*ratio/2,
+            segment.position.y+rise*ratio/2+.106,
+            segment.position.z+dz*ratio/2);
+          marker.quaternion.copy(segment.quaternion);
+          marker.scale.set(.13,.015,Math.min(3.3,length/count*.48));
+          marker.updateMatrix();laneMarks.push(marker.matrix.clone());
+        }
+        // A short zebra marking at selected segment ends gives intersections
+        // identifiable urban scale without manufacturing a false street grid.
+        if(length>24 && width>=7 && crossingMarks.length<550 &&
+            Math.abs(Math.round(a.x*3+a.z*7))%7===0){
+          const nx=-dz/length,nz=dx/length;
+          for(let k=-Math.floor(width/1.5)/2;k<Math.floor(width/1.5)/2;k++){
+            const along=5.5;
+            marker.position.set(a.x+dx/length*along+nx*k*1.5,
+              ya+rise*along/length+.23,
+              a.z+dz/length*along+nz*k*1.5);
+            marker.quaternion.copy(segment.quaternion);
+            // Stripe width is perpendicular to road heading.
+            marker.scale.set(2.6,.015,.9);
+            marker.updateMatrix();crossingMarks.push(marker.matrix.clone());
+          }
+        }
+      }
       if(Math.hypot(segment.position.x,segment.position.z)<360 && width>=6) {
         const nx=-dz/length,nz=dx/length;
         for(const side of [-1,1]) {
@@ -496,9 +543,20 @@ function installGeographicCity(data, elevationAt = () => 0) {
       }
     }
   }
-  const newBuildings = [], windowMatrices = [];
+  if(laneMarks.length){
+    const stripes=new THREE.InstancedMesh(laneGeometry,laneMaterial,laneMarks.length);
+    laneMarks.forEach((matrix,i)=>stripes.setMatrixAt(i,matrix));
+    stripes.instanceMatrix.needsUpdate=true;stripes.frustumCulled=false;city.add(stripes);
+  }
+  if(crossingMarks.length){
+    const crossings=new THREE.InstancedMesh(laneGeometry,laneMaterial,crossingMarks.length);
+    crossingMarks.forEach((matrix,i)=>crossings.setMatrixAt(i,matrix));
+    crossings.instanceMatrix.needsUpdate=true;crossings.frustumCulled=false;city.add(crossings);
+  }
+  const newBuildings = [], windowMatrices = [], storefrontMatrices=[];
   const windowGeometry = new THREE.BoxGeometry(1,1,.10);
   const windowMat = new THREE.MeshStandardMaterial({color:'#274653',metalness:.36,roughness:.24,emissive:'#131c20',emissiveIntensity:.12});
+  const storefrontMat=new THREE.MeshStandardMaterial({color:'#344c51',metalness:.32,roughness:.22,emissive:'#111b20',emissiveIntensity:.08});
   const transform = new THREE.Object3D();
   const maxWindows = mobileGpu ? 4500 : 12500;
   // Keep the closest mapped buildings first. OSM feature order is not spatial;
@@ -518,6 +576,18 @@ function installGeographicCity(data, elevationAt = () => 0) {
     if (!mesh) continue;
     city.add(mesh);
     newBuildings.push({ x:centerX, z:centerZ, w:maxX-minX, d:maxZ-minZ });
+    // Near-camera street-level shopfronts are real 3D facade additions,
+    // aligned to each OSM footprint edge rather than to an imaginary grid.
+    if(Math.hypot(centerX,centerZ)<220 && height>5 && storefrontMatrices.length<450){
+      for(let j=1;j<feature.points.length;j++){
+        const a=feature.points[j-1],b=feature.points[j],dx=b.x-a.x,dz=b.z-a.z,edge=Math.hypot(dx,dz);
+        if(edge<8||edge>65)continue;
+        transform.position.set((a.x+b.x)/2,base+1.45,(a.z+b.z)/2);
+        transform.rotation.set(0,Math.atan2(-dz,dx),0);
+        transform.scale.set(Math.min(edge*.76,12),2.05,.18);
+        transform.updateMatrix();storefrontMatrices.push(transform.matrix.clone());
+      }
+    }
     // Window units are a visual reconstruction, not measured facade data.
     // Instancing preserves draw-call budgets on mid-range mobile devices.
     if(Math.hypot(centerX,centerZ)<370 && windowMatrices.length<maxWindows) {
@@ -543,6 +613,11 @@ function installGeographicCity(data, elevationAt = () => 0) {
     windowMatrices.forEach((matrix,index)=>windows.setMatrixAt(index,matrix));
     windows.instanceMatrix.needsUpdate=true; windows.frustumCulled=false;city.add(windows);
   }
+  if(storefrontMatrices.length){
+    const shopfronts=new THREE.InstancedMesh(windowGeometry,storefrontMat,storefrontMatrices.length);
+    storefrontMatrices.forEach((matrix,i)=>shopfronts.setMatrixAt(i,matrix));
+    shopfronts.instanceMatrix.needsUpdate=true;shopfronts.frustumCulled=false;city.add(shopfronts);
+  }
   if (!city.children.length || !newBuildings.length) return false;
   for (const child of fictionalDistrict) child.visible = false;
   buildings.splice(0, buildings.length, ...newBuildings);
@@ -562,6 +637,7 @@ function installGeographicCity(data, elevationAt = () => 0) {
   if(spawn) {
     player.position.set(spawn.x,elevationAt(spawn.x,spawn.z),spawn.z);
     motor.x=spawn.x;motor.z=spawn.z;motor.vx=motor.vz=0;
+    cameraFocus.set(spawn.x,elevationAt(spawn.x,spawn.z)+1.6,spawn.z);
     heroCar.position.set(spawn.x+5,elevationAt(spawn.x+5,spawn.z),spawn.z);
   }
   document.querySelector('.location .tag').textContent = `${cityConfig.name.toUpperCase()} · ${cityConfig.province.toUpperCase()} · ECUADOR`;
@@ -660,7 +736,8 @@ function person(color='#d9b4a1'){
 }
 const player=person('#e5e1d6');player.position.set(0,0,0);scene.add(player);
 const motor=createMotor(0,0);
-let characterMixer=null,walkAction=null;
+let characterMixer=null,walkAction=null,idleAction=null,runAction=null,characterBody=null;
+let cameraFocus=new THREE.Vector3(0,1.6,0),cameraInitialized=false;
 const detailedCitizens=new Map();
 function installCharacter(loaded) {
   for(const detail of detailedCitizens.values())scene.remove(detail.root);
@@ -677,11 +754,17 @@ function installCharacter(loaded) {
   model.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;}});
   while(player.children.length)player.remove(player.children[0]);
   player.add(model);
+  characterBody=model;
   if(loaded.animations.length){
     characterMixer=new THREE.AnimationMixer(model);
-    walkAction=characterMixer.clipAction(loaded.animations[0]);
-    walkAction.play();
-    walkAction.paused=true;
+    const clips=loaded.animations;
+    const find=(pattern)=>clips.find(c=>pattern.test(c.name));
+    const walk=find(/walk|locomotion/i)||clips[0];
+    walkAction=characterMixer.clipAction(walk);walkAction.play();walkAction.setEffectiveWeight(0);
+    const idle=find(/idle|stand|breath/i);
+    if(idle&&idle!==walk){idleAction=characterMixer.clipAction(idle);idleAction.play();}
+    const run=find(/run|jog|sprint/i);
+    if(run&&run!==walk){runAction=characterMixer.clipAction(run);runAction.play();runAction.setEffectiveWeight(0);}
   }
   // Reuse one skinned glTF across the nearest 18 simulated citizens. Each
   // skeleton must be cloned independently; ordinary Object3D.clone breaks
@@ -755,7 +838,7 @@ const notice = message => { $('notice').textContent=message;$('notice').classLis
 const angleDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 
 function blocked(x,z){
-  if(Math.abs(x)>390 || Math.abs(z)>390)return true;
+  if(Math.abs(x)>cityConfig.radius-15 || Math.abs(z)>cityConfig.radius-15)return true;
   return buildings.some(b=>Math.abs(x-b.x)<b.w/2+1.1&&Math.abs(z-b.z)<b.d/2+1.1)
     ||plazaObstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+1.1);
 }
@@ -778,18 +861,27 @@ function move(dt, input){
     stepMotor(motor,input,yaw,dt,blocked);
     obj.position.set(motor.x,terrainHeightAt(motor.x,motor.z),motor.z);
     obj.rotation.y=motor.heading;
-    if(walkAction){walkAction.paused=!motor.moving;walkAction.timeScale=THREE.MathUtils.clamp(motor.speed/4.4,.5,1.8);}
+    if(walkAction){
+      const walkBlend=THREE.MathUtils.smoothstep(motor.speed,.12,1.3);
+      const runBlend=runAction?motor.gait:0;
+      walkAction.setEffectiveWeight(walkBlend*(1-runBlend));
+      walkAction.timeScale=THREE.MathUtils.clamp(motor.speed/3.5,.6,1.55);
+      runAction?.setEffectiveWeight(walkBlend*runBlend);
+      idleAction?.setEffectiveWeight(1-walkBlend);
+    }
     characterMixer?.update(dt);
     $('speedValue').textContent=Math.round(motor.speed*3.6);
   }
   const focus=obj.position.clone().add(new THREE.Vector3(0,driving?1.5:1.6,0));
+  if(!cameraInitialized){cameraFocus.copy(focus);cameraInitialized=true;}
+  cameraFocus.lerp(focus,1-Math.exp(-Math.max(.001,dt)*11));
   const offset=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch)*distance,Math.sin(pitch)*distance+1,Math.cos(yaw)*Math.cos(pitch)*distance);
   if(cameraMode===1){offset.multiplyScalar(.45);}else if(cameraMode===2){offset.set(0,30,.1);}
   if(cameraMode!==2){
-    const end=focus.clone().add(offset);
-    offset.multiplyScalar(cameraClearance(focus,end,buildings));
+    const end=cameraFocus.clone().add(offset);
+    offset.multiplyScalar(cameraClearance(cameraFocus,end,buildings));
   }
-  camera.position.lerp(focus.clone().add(offset),Math.min(1,dt*7));camera.lookAt(focus);
+  camera.position.lerp(cameraFocus.clone().add(offset),1-Math.exp(-dt*6));camera.lookAt(cameraFocus);
   sun.position.set(obj.position.x-150,180,obj.position.z-120);
   sun.target.position.copy(obj.position);
 }
