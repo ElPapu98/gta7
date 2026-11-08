@@ -22,6 +22,22 @@ test('player decelerates when input released', () => {
   const old=body.speed;for(let i=0;i<30;i++)stepMotor(body,{},0,1/60);
   assert.ok(body.speed<old*.1);
 });
+test('analog stick controls walking speed progressively', () => {
+  const full=createMotor(),half=createMotor();
+  for(let i=0;i<120;i++){
+    stepMotor(full,{forward:1},0,1/60);
+    stepMotor(half,{forward:.5},0,1/60);
+  }
+  assert.ok(half.speed>full.speed*.45 && half.speed<full.speed*.55);
+});
+test('sprint accelerates rather than instantly teleporting to its top speed', () => {
+  const player=createMotor();
+  stepMotor(player,{forward:1,run:true},0,1/60);
+  assert.ok(player.speed>0 && player.speed<1);
+  for(let i=0;i<90;i++)stepMotor(player,{forward:1,run:true},0,1/60);
+  assert.ok(player.speed>6 && player.gait>.8);
+  assert.ok(player.stride>0);
+});
 test('chase camera shortens when a building blocks line of sight', () => {
   const from={x:0,z:0},to={x:0,z:12};
   assert.ok(cameraClearance(from,to,[{x:0,z:8,w:5,d:5}])<.6);
