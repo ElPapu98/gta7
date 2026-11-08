@@ -2,15 +2,19 @@
 export function createMotor(x = 0, z = 0) { return { x, z, vx: 0, vz: 0, heading: 0, moving: false, speed: 0 }; }
 export function shortestTurn(from, to) { return Math.atan2(Math.sin(to - from), Math.cos(to - from)); }
 
+// A camera at target + (sin(yaw), 0, cos(yaw)) looks towards the target.
+// Its ground-plane forward is (-sin(yaw), -cos(yaw)); screen-right is
+// (+cos(yaw), -sin(yaw)). Keep this one transform shared by all input devices.
+export function cameraRelativeDirection(forward, sideways, yaw) {
+  const sin=Math.sin(yaw),cos=Math.cos(yaw);
+  return { x: -sin*forward+cos*sideways, z: -cos*forward-sin*sideways };
+}
+
 export function stepMotor(state, input, cameraYaw, delta, isBlocked = () => false) {
   const dt = Math.max(0, Math.min(delta, .05));
   const f = input.forward || 0, s = input.sideways || 0;
   const magnitude = Math.min(1, Math.hypot(f,s));
-  // Camera position is player + (sin(yaw), 0, cos(yaw)). Its forward
-  // direction is the *negative* of that offset. The previous signs moved
-  // W toward the camera and mirrored A/D, independently of input device.
-  const dx = -(Math.sin(cameraYaw)*f + Math.cos(cameraYaw)*s);
-  const dz = -(Math.cos(cameraYaw)*f - Math.sin(cameraYaw)*s);
+  const {x:dx,z:dz}=cameraRelativeDirection(f,s,cameraYaw);
   const length = Math.max(1, Math.hypot(dx,dz));
   const maxSpeed = input.run ? 8.5 : 4.4;
   const targetX = dx/length*maxSpeed, targetZ = dz/length*maxSpeed;

@@ -3,11 +3,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { fetchVisualAssets } from './asset-stream.js?v=0.8.0';
-import { movement, readGamepad } from './controls.js?v=0.8.0';
-import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.8.0';
-import { createWorld, step, incident } from './simulation.js?v=0.8.0';
-import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.8.0';
+import { fetchVisualAssets } from './asset-stream.js?v=0.9.0';
+import { movement, readGamepad } from './controls.js?v=0.9.0';
+import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.9.0';
+import { createWorld, step, incident } from './simulation.js?v=0.9.0';
+import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.9.0';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -797,7 +797,7 @@ async function bootVisuals() {
     $('loadMessage').textContent = 'Decodificando materiales y vehículo 3D…';
     const tasks = [
       loadSurface(roadMat, 'weathered-asphalt-color.jpg', 'weathered-asphalt-normal.jpg', 55, urls),
-      loadSurface(pavement, 'pavement-color.jpg', 'pavement-normal.jpg', 9, urls),
+      loadSurface(pavement, 'urban-paving-color.jpg', 'urban-paving-normal.jpg', 9, urls),
       loadSurface(concrete, 'concrete-color.jpg', 'concrete-normal.jpg', 4, urls),
       loadSurface(signatureStone, 'stone-brick-color.jpg', 'stone-brick-normal.jpg', 7, urls),
     ];

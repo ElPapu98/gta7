@@ -15,6 +15,8 @@ export const assets = [
   { name: 'weathered-asphalt-normal.jpg', url: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/asphalt_02/asphalt_02_nor_gl_2k.jpg', min: 300_000 },
   { name: 'stone-brick-color.jpg', url: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_brick_wall_001/concrete_brick_wall_001_diffuse_2k.jpg', min: 300_000 },
   { name: 'stone-brick-normal.jpg', url: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_brick_wall_001/concrete_brick_wall_001_nor_gl_2k.jpg', min: 300_000 },
+  { name: 'urban-paving-color.jpg', url: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavement_02/concrete_pavement_02_diff_2k.jpg', min: 300_000 },
+  { name: 'urban-paving-normal.jpg', url: 'https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/concrete_pavement_02/concrete_pavement_02_nor_gl_2k.jpg', min: 300_000 },
   { name: 'sunset.hdr', url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/industrial_sunset_puresky_1k.hdr', min: 200_000 },
   { name: 'concept-car.glb', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb', min: 2_000_000 },
   { name: 'cesium-man.glb', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CesiumMan/glTF-Binary/CesiumMan.glb', min: 200_000 },

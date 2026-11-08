@@ -1,5 +1,14 @@
 # GTA7.WASM — Living City Lab
 
+**Control fix 0.9:** El movimiento a pie usa una base ortonormal derivada de la
+cámara: W avanza hacia la escena, S retrocede, A va a la izquierda y D a la
+derecha visual, incluso después de rotar la cámara. Antes A/D estaban
+intercambiados. Teclado, joystick táctil y mando alimentan la misma transformación.
+Los sticks de mando ahora usan una zona muerta radial y se admite la cruceta.
+Se incorpora también pavimento urbano PBR 2K CC0 de Poly Haven. Las pruebas
+automáticas cubren giros de cámara y diagonales, sin sustituir la validación
+manual en dispositivos reales.
+
 **Escenario autoral — Plaza Bahía (versión 0.8):** el bloque
 central noreste incorpora una plaza cívica de 62 × 62 m con pabellón cultural
 acristalado, marquesina iluminada, pavimento con juntas y apliques metálicos,
