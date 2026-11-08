@@ -10,6 +10,7 @@ import { createWorld, step, incident } from './simulation.js?v=0.10.0';
 import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.10.0';
 import { fetchCity, buildingHeight, roadWidth, CITY_CONFIG } from './portoviejo.js';
 import { loadTerrain } from './terrain.js';
+import { combineRoadRibbons } from './road-geometry.js?v=0.14.0';
 const cityKey = new URLSearchParams(location.search).get('city') === 'portoviejo' ? 'portoviejo' : 'quito';
 const cityConfig = CITY_CONFIG[cityKey];
 
@@ -463,7 +464,7 @@ function installGeographicCity(data, elevationAt = () => 0) {
   const curb = std('#a5a7a2', .94);
   const walls = ['#cbb99e', '#e0d4bf', '#aeb0a7', '#d8c3a5', '#b7aa98', '#d7d4cd'].map(c => std(c, .92));
   const roof = [std('#8b8580'),std('#a0a2a0'),std('#a78d7c'),std('#656b70')];
-  const cityGroundGeometry = new THREE.PlaneGeometry(2800, 2800, 100, 100);
+  const cityGroundGeometry = new THREE.PlaneGeometry(2800, 2800, 140, 140);
   cityGroundGeometry.rotateX(-Math.PI / 2);
   const groundPositions = cityGroundGeometry.attributes.position;
   for(let i=0;i<groundPositions.count;i++) {
@@ -484,7 +485,15 @@ function installGeographicCity(data, elevationAt = () => 0) {
   const laneGeometry=new THREE.BoxGeometry(1,1,1);
   const laneMaterial=new THREE.MeshStandardMaterial({color:'#e9e5d8',roughness:.95,depthWrite:true});
   const marker=new THREE.Object3D();
-  for (const feature of data.roads) {
+  const roadData=data.roads.filter(feature=>renderArea(feature.points));
+  const ribbons=combineRoadRibbons(roadData,feature=>roadWidth(feature.tags.highway),elevationAt);
+  const roadGeometry=new THREE.BufferGeometry();
+  roadGeometry.setAttribute('position',new THREE.Float32BufferAttribute(ribbons.vertices,3));
+  roadGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(ribbons.uv,2));
+  roadGeometry.setIndex(ribbons.indices);roadGeometry.computeVertexNormals();
+  const roadSurface=new THREE.Mesh(roadGeometry,asphalt);
+  roadSurface.receiveShadow=true;city.add(roadSurface);
+  for (const feature of roadData) {
     if (!renderArea(feature.points)) continue;
     const width = roadWidth(feature.tags.highway);
     for (let i = 1; i < feature.points.length; i++) {
@@ -493,23 +502,18 @@ function installGeographicCity(data, elevationAt = () => 0) {
       if (length < .3 || length > 600) continue;
       const ya=elevationAt(a.x,a.z), yb=elevationAt(b.x,b.z);
       const rise=yb-ya;
-      const segment = new THREE.Mesh(geometry.box, asphalt);
-      segment.position.set((a.x+b.x)/2, (ya+yb)/2+.12, (a.z+b.z)/2);
-      segment.scale.set(width, .16, Math.hypot(length,rise)+.8);
-      segment.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(dx,rise,dz).normalize());
-      segment.receiveShadow = true; city.add(segment);
+      const midpoint={x:(a.x+b.x)/2,z:(a.z+b.z)/2};
       // Road markings follow the surveyed OSM segments, including terrain grade.
       // Limit them to the playable high-detail district and batch into one draw call.
-      const local=Math.hypot(segment.position.x,segment.position.z)<300;
+      const local=Math.hypot(midpoint.x,midpoint.z)<300;
       if(local && width>=6 && length>8 && laneMarks.length<2400){
         const dashed=!['residential','living_street','service'].includes(feature.tags.highway);
         const count=dashed?Math.floor(length/8):0;
         for(let dash=0;dash<count;dash++){
           const t=(dash+.5)/count,ratio=t*2-1;
-          marker.position.set(segment.position.x+dx*ratio/2,
-            segment.position.y+rise*ratio/2+.106,
-            segment.position.z+dz*ratio/2);
-          marker.quaternion.copy(segment.quaternion);
+          const x=midpoint.x+dx*ratio/2,z=midpoint.z+dz*ratio/2;
+          marker.position.set(x,elevationAt(x,z)+.162,z);
+          marker.rotation.set(0,Math.atan2(dx,dz),0);
           marker.scale.set(.13,.015,Math.min(3.3,length/count*.48));
           marker.updateMatrix();laneMarks.push(marker.matrix.clone());
         }
@@ -521,26 +525,17 @@ function installGeographicCity(data, elevationAt = () => 0) {
           for(let k=-Math.floor(width/1.5)/2;k<Math.floor(width/1.5)/2;k++){
             const along=5.5;
             marker.position.set(a.x+dx/length*along+nx*k*1.5,
-              ya+rise*along/length+.23,
+              elevationAt(a.x+dx/length*along+nx*k*1.5,a.z+dz/length*along+nz*k*1.5)+.163,
               a.z+dz/length*along+nz*k*1.5);
-            marker.quaternion.copy(segment.quaternion);
+            marker.rotation.set(0,Math.atan2(dx,dz),0);
             // Stripe width is perpendicular to road heading.
             marker.scale.set(2.6,.015,.9);
             marker.updateMatrix();crossingMarks.push(marker.matrix.clone());
           }
         }
       }
-      if(Math.hypot(segment.position.x,segment.position.z)<360 && width>=6) {
-        const nx=-dz/length,nz=dx/length;
-        for(const side of [-1,1]) {
-          const sidewalk=new THREE.Mesh(geometry.box,curb);
-          sidewalk.position.set(segment.position.x+nx*(width/2+1.25)*side,
-            segment.position.y-.04,segment.position.z+nz*(width/2+1.25)*side);
-          sidewalk.scale.set(2.3,.22,Math.hypot(length,rise)+.5);
-          sidewalk.quaternion.copy(segment.quaternion);
-          sidewalk.receiveShadow=true;city.add(sidewalk);
-        }
-      }
+      // Continuous sidewalks require junction polygons. Individual tilted
+      // sidewalk boxes produced the large white overlapping slabs in iOS.
     }
   }
   if(laneMarks.length){
@@ -735,6 +730,8 @@ function person(color='#d9b4a1'){
   return g;
 }
 const player=person('#e5e1d6');player.position.set(0,0,0);scene.add(player);
+// The old mannequin measured over 2.3 m and made vehicles appear undersized.
+player.scale.setScalar(.78);
 const motor=createMotor(0,0);
 let characterMixer=null,walkAction=null,idleAction=null,runAction=null,characterBody=null;
 let cameraFocus=new THREE.Vector3(0,1.6,0),cameraInitialized=false;
@@ -746,13 +743,14 @@ function installCharacter(loaded) {
   const bounds=new THREE.Box3().setFromObject(model);
   const size=bounds.getSize(new THREE.Vector3());
   if(!Number.isFinite(size.y)||size.y<.01)throw Error('Modelo humano sin geometría válida');
-  model.scale.setScalar(2.12/size.y);
+  model.scale.setScalar(1.78/size.y);
   model.updateMatrixWorld(true);
   const fitted=new THREE.Box3().setFromObject(model);
   const center=fitted.getCenter(new THREE.Vector3());
   model.position.set(-center.x,-fitted.min.y,-center.z);
   model.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;}});
   while(player.children.length)player.remove(player.children[0]);
+  player.scale.setScalar(1);
   player.add(model);
   characterBody=model;
   if(loaded.animations.length){
@@ -825,7 +823,7 @@ const world=createWorld(53,60);
 for(const agent of world.agents)agent.speed*=.3;
 for(let i=0;i<world.agents.length;i++){
   const model=person(choose(['#c8a68d','#cf6651','#8f9d9b','#b7b39f','#556e85','#8e9c76']));
-  model.scale.setScalar(rand(.82,1.05));scene.add(model);pedestrians.push(model);
+  model.scale.setScalar(rand(.70,.80));scene.add(model);pedestrians.push(model);
 }
 
 let qualityHigh=true, timeMode=0, trafficEnabled=true, soundEnabled=false, driving=false, cameraMode=0;
@@ -859,7 +857,8 @@ function move(dt, input){
     $('speedValue').textContent=Math.round(Math.abs(velocity)*3.6);
   }else{
     stepMotor(motor,input,yaw,dt,blocked);
-    obj.position.set(motor.x,terrainHeightAt(motor.x,motor.z),motor.z);
+    const targetGround=terrainHeightAt(motor.x,motor.z);
+    obj.position.set(motor.x,THREE.MathUtils.lerp(obj.position.y,targetGround,1-Math.exp(-dt*15)),motor.z);
     obj.rotation.y=motor.heading;
     if(walkAction){
       const walkBlend=THREE.MathUtils.smoothstep(motor.speed,.12,1.3);
