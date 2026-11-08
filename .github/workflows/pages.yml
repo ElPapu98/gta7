@@ -37,10 +37,13 @@ jobs:
           mkdir -p _site/src
           cp realism.html _site/index.html
           cp realism.html _site/realism.html
+          cp next.html _site/next.html
           cp index.html _site/classic.html
           cp index.html _site/v0.16.0.html
           cp src/scene3d.js src/portoviejo.js src/terrain.js src/gameplay.js src/main.js src/simulation.js src/asset-stream.js src/controls.js src/character-motor.js src/road-geometry.js src/style.css _site/src/
           cp src/realism.js src/realism.css _site/src/
+          mkdir -p _site/src/next
+          cp src/next/*.js src/next/*.css _site/src/next/
           cp -r assets _site/assets
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
@@ -60,6 +63,8 @@ jobs:
           curl -fsS "${base}v0.16.0.html" | grep 'VERSIÓN 0.16.0' >/dev/null
           curl -fsS "${base}index.html" | grep 'THE' >/dev/null
           curl -fsS "${base}src/realism.js?v=1" | grep 'installFacades' >/dev/null
+          curl -fsS "${base}next.html" | grep 'WEBGPU LAB' >/dev/null
+          curl -fsS "${base}src/next/main.js?v=1" | grep 'GSplatComponentSystem' >/dev/null
           curl -fsS "${base}src/scene3d.js?v=0.16.0" | grep 'fetchCity' >/dev/null
           curl -fsS "${base}src/road-geometry.js" | grep 'roadRibbon' >/dev/null
           curl -fsSI "${base}assets/maps/quito.json" | grep -i '200' >/dev/null
