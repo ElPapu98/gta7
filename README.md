@@ -1,5 +1,17 @@
 # GTA7.WASM — Living City Lab
 
+**Visual lab 0.16:** un perfil ULTRA optativo en equipos de escritorio
+ejecuta SSAO (oclusión ambiental en espacio de pantalla) y bloom moderado
+mediante EffectComposer de Three.js r170; ALTA y MEDIA conservan el render
+directo. El HUD muestra FPS, draw calls y triángulos para comparar los perfiles.
+En las huellas OSM cercanas se añaden cristales con variación de color,
+marquesinas y unidades técnicas en azoteas, agrupadas con InstancedMesh para
+evitar un draw call por objeto. Son detalles artísticos sintéticos: no se
+presentan como mediciones exactas de edificios de Quito. WebGPU, Nanite,
+Lumen y path tracing **no están integrados**. La mejora visual real y el
+rendimiento deben probarse en cada navegador/GPU; los tests de Node validan
+únicamente la lógica del proyecto.
+
 **Mobile input 0.10:** botón CORRER de pulsación alternada con indicador
 CORRIENDO, liberación segura de entradas al perder el foco y seguimiento por
 `pointerId` para joystick, cámara y arrastre de escritorio; un dedo ya no
