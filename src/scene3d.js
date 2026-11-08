@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { createWorld, step, incident } from './simulation.js';
 import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js';
 
@@ -63,6 +65,37 @@ const roadTexture = texture((g,w,h) => {
 roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping; roadTexture.repeat.set(30, 30);
 const roadMat = new THREE.MeshStandardMaterial({ map: roadTexture, roughness: .96 });
 
+// Asset-backed PBR materials: procedural maps remain usable if assets are unavailable.
+const assetLoader = new THREE.TextureLoader();
+function loadSurface(material, colorPath, normalPath, repeats) {
+  const configure = (tex, isColor) => {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeats, repeats);
+    tex.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+    if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  };
+  assetLoader.load('./assets/' + colorPath, tex => {
+    material.map = configure(tex, true);
+    material.needsUpdate = true;
+  }, undefined, () => console.warn('Fallback procedural texture:', colorPath));
+  assetLoader.load('./assets/' + normalPath, tex => {
+    material.normalMap = configure(tex, false);
+    material.normalScale = new THREE.Vector2(.45, .45);
+    material.needsUpdate = true;
+  }, undefined, () => console.warn('Normal map unavailable:', normalPath));
+}
+loadSurface(roadMat, 'asphalt-color.jpg', 'asphalt-normal.jpg', 55);
+loadSurface(pavement, 'pavement-color.jpg', 'pavement-normal.jpg', 9);
+loadSurface(concrete, 'concrete-color.jpg', 'concrete-normal.jpg', 4);
+
+new RGBELoader().load('./assets/sunset.hdr', hdr => {
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = hdr;
+  scene.environmentIntensity = .78;
+  console.info('GTA7 PBR: real HDR environment active');
+}, undefined, () => console.warn('HDRI unavailable, using hemisphere lighting'));
+
 function facadeTexture(tint, floors = 10, columns = 5) {
   return texture((g,w,h) => {
     g.fillStyle = tint;g.fillRect(0,0,w,h);
@@ -121,8 +154,28 @@ function palm(parent,x,z,scale=1) {
 function createBuilding(x,z,w,d,height,style) {
   const group=new THREE.Group();scene.add(group);
   box(group,w,height,d,x,height/2+.5,z,style);
-  box(group,w+1,.6,d+1,x,height+.8,z,concrete);
+  // Structural relief matters: flat texture-only facades read as cardboard.
+  box(group,w+.9,.55,d+.9,x,height+.8,z,concrete);
   box(group,w*.7,1.1,d*.7,x,height+1.5,z,darkMetal);
+  box(group,w+.35,.55,d+.35,x,4.6,z,concrete);
+  box(group,w+.22,.4,d+.22,x,9,z,concrete);
+  for(const side of [-1,1]){
+    const front=z+side*(d/2+.09);
+    box(group,w*.67,3.55,.2,x,2.32,front,glassMat);
+    for(let a=-1;a<=1;a++)box(group,.24,3.65,.32,x+a*w*.22,2.34,front,darkMetal);
+    box(group,w*.78,.38,2.15,x,4.25,front+side*.75,concrete);
+    box(group,w*.78,.14,2.2,x,4.02,front+side*.75,darkMetal);
+  }
+  for(const side of [-1,1]) {
+    const xEdge=x+side*(w/2+.11);
+    for(let level=6;level<height-2;level+=7){
+      box(group,.22,.16,d+.22,xEdge,level,z,concrete);
+    }
+  }
+  for(let a=0;a<3;a++){
+    const ax=x+rand(-w*.32,w*.32),az=z+rand(-d*.32,d*.32);
+    box(group,1.2,.8,1,ax,height+1.5,az,std('#727a79',.83,.25));
+  }
   if(height>35){box(group,1.8,4,1.8,x+3,height+3,z-3,darkMetal);}
   if(rng()<.35){box(group,w*.38,1,d*.26,x-w*.15,height+1.8,z+d*.2,concrete);}
   buildings.push({x,z,w,d});
@@ -172,6 +225,19 @@ for(let i=-radius;i<=radius;i++)for(let j=-radius;j<=radius;j++){
   light.castShadow=false;
 }
 
+// Street-scale props in the playable starting block; shadows and contact
+// geometry prevent the foreground from feeling like a distant scale model.
+const roadFurniture=std('#434d4e',.72,.35);
+for(const x of [-34,-27,-20,20,27,34]){
+  cylinder(scene,.13,1.05,x,.6,13.7,roadFurniture,12);
+  cylinder(scene,.13,1.05,x,.6,-13.7,roadFurniture,12);
+}
+for(const [x,z] of [[-24,18],[27,-18],[20,29]]){
+  box(scene,2.4,.22,.9,x,.72,z,concrete,true);
+  box(scene,.15,.58,.15,x-.92,.37,z,roadFurniture);
+  box(scene,.15,.58,.15,x+.92,.37,z,roadFurniture);
+}
+
 const tireMat=std('#171b1c',.95), rimMat=std('#929da0',.4,.6), windshield=std('#28414c',.16,.45);
 function carModel(color='#d8d9d1',size=1){
   const group=new THREE.Group();const body=std(color,.28,.52);
@@ -206,6 +272,26 @@ for(let i=0;i<36;i++){
 }
 // A parked, enterable car by the player's start.
 const heroCar=carModel('#e2bf83',1.12);heroCar.position.set(5,0,14);scene.add(heroCar);
+
+// Detailed, independently licensed glTF showcase vehicle. Its parent remains
+// the drivable entity; a failed download keeps the procedural vehicle playable.
+new GLTFLoader().load('./assets/concept-car.glb', loaded => {
+  const model = loaded.scene;
+  const bounds = new THREE.Box3().setFromObject(model);
+  const size = bounds.getSize(new THREE.Vector3());
+  if (!Number.isFinite(size.length()) || size.length() < .01) return;
+  model.scale.setScalar(4.9 / Math.max(size.x, size.z));
+  model.updateMatrixWorld(true);
+  const fitted = new THREE.Box3().setFromObject(model);
+  const center = fitted.getCenter(new THREE.Vector3());
+  model.position.x -= center.x;
+  model.position.z -= center.z;
+  model.position.y -= fitted.min.y;
+  model.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
+  while (heroCar.children.length) heroCar.remove(heroCar.children[0]);
+  heroCar.add(model);
+  notice('Vehículo glTF de alta calidad cargado');
+}, undefined, error => console.warn('Vehicle model unavailable; keeping fallback', error));
 
 // Objective visualization: beacon, ground ring and floating waypoint diamond.
 const objectiveGroup = new THREE.Group();scene.add(objectiveGroup);

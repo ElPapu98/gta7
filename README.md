@@ -1,17 +1,20 @@
 # GTA7.WASM — Living City Lab
 
-> **Investigación de streaming (ADR-001):** [arquitectura, plan de assets hiperrealistas y requisitos de `rangeplay`](docs/ADR-001-rangeplay.md). Hay un precheck de cabeceras con `npm run doctor -- https://HOST/` y un archivo `_headers` para hosts compatibles. **La preview actual aún no ejecuta rangeplay ni contiene assets fotorrealistas.**
+> **Investigación de streaming (ADR-001):** [arquitectura, plan de assets hiperrealistas y requisitos de `rangeplay`](docs/ADR-001-rangeplay.md). Hay un precheck de cabeceras con `npm run doctor -- https://HOST/` y un archivo `_headers` para hosts compatibles. **La preview actual aún no ejecuta rangeplay; los nuevos recursos PBR no convierten por sí solos el distrito procedural en una ciudad fotorrealista.**
+
+**Visual milestone 0.3:** la construcción de Pages descarga materiales PBR de asfalto, pavimento y concreto, un HDRI real y un vehículo glTF detallado. El prototipo sigue siendo una ciudad procedural estilizada, no un entorno AAA; ahora utiliza algunos recursos fotográficos reales y una malla de vehículo de producción. Véase [licencias y créditos](ASSET-CREDITS.md).
 
 Original open-world simulation research project. This repository is **pre-alpha**, not a GTA VI-scale game or an official Rockstar product. Version 0.2 adds an interactive, procedural 3D city preview powered by Three.js/WebGL 2. The simulation remains a JavaScript reference; Rust/WASM integration remains a future milestone.
 
 ## Run the verified browser prototype
 
-Requires Node.js 20+; no dependencies or downloads.
+Requires Node.js 20+; no npm dependencies. The visual upgrade downloads third-party licensed assets into `assets/`.
 
 ```bash
 npm run dev
 # open http://127.0.0.1:4173
 npm test
+npm run assets   # descarga los recursos gráficos para la misma experiencia que Pages
 ```
 
 ### GitHub Pages
@@ -20,7 +23,7 @@ The `.github/workflows/pages.yml` workflow runs tests and deploys a static previ
 
 Move with WASD/arrow keys; hold Shift to run; drag the mouse to rotate the camera; mouse wheel zooms. Approach the golden car and press E to enter/exit; drive with WASD. Press F at the yellow mission marker to accept, collect and deliver packages against a countdown. Contracts earn cash, unlock longer routes and save progress in localStorage. Change the camera, lighting and traffic from the controls. Space records a simulated incident in the underlying reference simulation.
 
-The 3D scene loads Three.js 0.170.0 as a pinned ES module from jsDelivr. An internet connection is required. It uses procedural materials, geometry and lighting without proprietary game assets; this is a **stylized architectural preview**, not photorealistic AAA content.
+The 3D scene loads Three.js 0.170.0 as a pinned ES module from jsDelivr. An internet connection is required. It uses procedural geometry with real CC0 PBR materials and HDRI, and a CC BY 4.0 showcase vehicle with attribution. This is still a **stylized architectural preview**, not photorealistic AAA content.
 
 ## Rust / WebAssembly core (experimental, not yet wired to browser)
 

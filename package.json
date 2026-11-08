@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node tools/serve.mjs",
     "test": "node --test tests/*.test.mjs",
-    "doctor": "node tools/doctor.mjs"
+    "doctor": "node tools/doctor.mjs",
+    "assets": "node tools/fetch-assets.mjs assets"
   }
 }
