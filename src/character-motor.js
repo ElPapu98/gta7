@@ -1,5 +1,5 @@
 // Deterministic planar third-person locomotion, independent of renderer/FPS.
-export function createMotor(x = 0, z = 0) { return { x, z, vx: 0, vz: 0, heading: 0, moving: false, speed: 0 }; }
+export function createMotor(x = 0, z = 0) { return { x, z, vx: 0, vz: 0, heading: 0, moving: false, speed: 0, gait: 0, stride: 0 }; }
 export function shortestTurn(from, to) { return Math.atan2(Math.sin(to - from), Math.cos(to - from)); }
 
 // A camera at target + (sin(yaw), 0, cos(yaw)) looks towards the target.
@@ -16,9 +16,10 @@ export function stepMotor(state, input, cameraYaw, delta, isBlocked = () => fals
   const magnitude = Math.min(1, Math.hypot(f,s));
   const {x:dx,z:dz}=cameraRelativeDirection(f,s,cameraYaw);
   const length = Math.max(1, Math.hypot(dx,dz));
-  const maxSpeed = input.run ? 8.5 : 4.4;
+  // Analog input must retain its magnitude: half a stick is a walk, not a sprint.
+  const maxSpeed = input.run ? 6.8 : 3.5;
   const targetX = dx/length*maxSpeed, targetZ = dz/length*maxSpeed;
-  const response = magnitude ? 12 : 18;
+  const response = magnitude ? (input.run ? 4.8 : 7) : 11;
   const smoothing = 1-Math.exp(-response*dt);
   state.vx += (targetX-state.vx)*smoothing;
   state.vz += (targetZ-state.vz)*smoothing;
@@ -32,9 +33,11 @@ export function stepMotor(state, input, cameraYaw, delta, isBlocked = () => fals
   }
   state.speed=Math.hypot(state.vx,state.vz);
   state.moving=state.speed>.1;
+  state.gait += ((input.run && state.speed>4 ? 1 : 0)-state.gait)*(1-Math.exp(-5*dt));
+  state.stride += state.speed*dt;
   if(state.moving){
     const desired=Math.atan2(state.vx,state.vz);
-    state.heading+=shortestTurn(state.heading,desired)*(1-Math.exp(-14*dt));
+    state.heading+=shortestTurn(state.heading,desired)*(1-Math.exp(-(5+Math.min(5,state.speed))*dt));
   }
   return state;
 }
