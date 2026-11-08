@@ -14,6 +14,18 @@ const cityKey = new URLSearchParams(location.search).get('city') === 'portoviejo
 const cityConfig = CITY_CONFIG[cityKey];
 
 const $ = id => document.getElementById(id);
+const hudMenu=$('hudMenu'), menuToggle=$('menuToggle'), missionToggle=$('missionToggle');
+menuToggle.onclick=()=>{
+  const open=hudMenu.classList.toggle('open');
+  document.querySelector('.buttons').classList.toggle('open',open);
+  menuToggle.setAttribute('aria-expanded',String(open));
+};
+if(matchMedia('(pointer:coarse)').matches)document.querySelector('.mission').classList.add('compact');
+missionToggle.onclick=()=>{
+  const expanded=document.querySelector('.mission').classList.toggle('expanded');
+  document.querySelector('.mission').classList.toggle('compact',!expanded);
+  missionToggle.setAttribute('aria-expanded',String(expanded));
+};
 const canvas = $('scene');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#9caeb5');
@@ -25,11 +37,11 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.35;
+renderer.toneMappingExposure = 1.05;
 const camera = new THREE.PerspectiveCamera(65, 1, .15, 2000);
 camera.position.set(8, 6, 15);
 const clock = new THREE.Clock();
-const sun = new THREE.DirectionalLight('#ffe4b5', 3.5);
+const sun = new THREE.DirectionalLight('#fff0d5', 2.8);
 sun.position.set(-180, 180, -120);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -39,7 +51,7 @@ sun.shadow.camera.near = 1; sun.shadow.camera.far = 600;
 sun.shadow.bias = -.0002;
 sun.target.position.set(0, 0, 0);
 scene.add(sun, sun.target);
-const ambient = new THREE.HemisphereLight('#b6d4ff', '#7d715e', 2.0);
+const ambient = new THREE.HemisphereLight('#c4d8f3', '#827665', 1.2);
 scene.add(ambient);
 const sky = new Sky();
 sky.scale.setScalar(450000);
@@ -87,6 +99,7 @@ const roadTexture = texture((g,w,h) => {
 });
 roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping; roadTexture.repeat.set(30, 30);
 const roadMat = new THREE.MeshStandardMaterial({ map: roadTexture, roughness: .96 });
+const geographicAsphalt = std('#e7e7e7', .97);
 const signatureStone = std('#f0e6d5',.82);
 
 // Asset-backed PBR materials: procedural maps remain usable if assets are unavailable.
@@ -435,7 +448,8 @@ function polygonMesh(points, height, material, elevation = 0) {
 
 function installGeographicCity(data, elevationAt = () => 0) {
   const city = new THREE.Group();
-  const asphalt = std('#34383b', .97), park = std('#567f48'), water = std('#467d85', .28);
+  const asphalt = geographicAsphalt, park = std('#567f48'), water = std('#467d85', .28);
+  const curb = std('#a5a7a2', .94);
   const walls = ['#cbb99e', '#e0d4bf', '#aeb0a7', '#d8c3a5', '#b7aa98', '#d7d4cd'].map(c => std(c, .92));
   const roof = [std('#8b8580'),std('#a0a2a0'),std('#a78d7c'),std('#656b70')];
   const cityGroundGeometry = new THREE.PlaneGeometry(2800, 2800, 100, 100);
@@ -469,6 +483,17 @@ function installGeographicCity(data, elevationAt = () => 0) {
       segment.scale.set(width, .16, Math.hypot(length,rise)+.8);
       segment.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(dx,rise,dz).normalize());
       segment.receiveShadow = true; city.add(segment);
+      if(Math.hypot(segment.position.x,segment.position.z)<360 && width>=6) {
+        const nx=-dz/length,nz=dx/length;
+        for(const side of [-1,1]) {
+          const sidewalk=new THREE.Mesh(geometry.box,curb);
+          sidewalk.position.set(segment.position.x+nx*(width/2+1.25)*side,
+            segment.position.y-.04,segment.position.z+nz*(width/2+1.25)*side);
+          sidewalk.scale.set(2.3,.22,Math.hypot(length,rise)+.5);
+          sidewalk.quaternion.copy(segment.quaternion);
+          sidewalk.receiveShadow=true;city.add(sidewalk);
+        }
+      }
     }
   }
   const newBuildings = [], windowMatrices = [];
@@ -634,6 +659,8 @@ const motor=createMotor(0,0);
 let characterMixer=null,walkAction=null;
 const detailedCitizens=new Map();
 function installCharacter(loaded) {
+  for(const detail of detailedCitizens.values())scene.remove(detail.root);
+  detailedCitizens.clear();
   const model=loaded.scene;
   const bounds=new THREE.Box3().setFromObject(model);
   const size=bounds.getSize(new THREE.Vector3());
@@ -655,7 +682,7 @@ function installCharacter(loaded) {
   // Reuse one skinned glTF across the nearest 18 simulated citizens. Each
   // skeleton must be cloned independently; ordinary Object3D.clone breaks
   // skin bone bindings for animated characters.
-  const nearest=world.agents.map((agent,i)=>({i,d:Math.hypot(agent.x-630,agent.y-630)})).sort((a,b)=>a.d-b.d).slice(0,18);
+  const nearest=world.agents.map((agent,i)=>({i,d:Math.hypot(agent.x-630,agent.y-630)})).sort((a,b)=>a.d-b.d).slice(0,mobileGpu?8:18);
   for(const {i} of nearest){
     const root=new THREE.Group(),body=SkeletonUtils.clone(model);
     root.add(body);scene.add(root);
@@ -982,6 +1009,7 @@ function loadingError(message) {
 }
 $('loadContinue').onclick = () => { notice('Modo de compatibilidad: recursos no disponibles'); startGame(); };
 const urbanInstallers=[
+  ['sam-walk.glb',installCharacter],
   ['urban-facade.glb',installUrbanDetail],
   ['street-lamp.glb',installStreetLamps],
   ['trash-can.glb',loaded=>installStreetProps(loaded,[[19,20],[20,-19],[-19,20],[-20,-20]],1.25)],
@@ -994,7 +1022,7 @@ let detailStarted=false;
 async function streamUrbanDetail(){
   if(detailStarted)return;
   detailStarted=true;
-  const selected=new Set(urbanInstallers.filter(([name])=>!mobileGpu||['street-lamp.glb','shrub.glb'].includes(name)).map(([name])=>name));
+  const selected=new Set(urbanInstallers.filter(([name])=>!mobileGpu||['sam-walk.glb','street-lamp.glb','shrub.glb'].includes(name)).map(([name])=>name));
   const status=$('streamStatus');
   try{
     const result=await fetchVisualAssets('./assets/manifest.json',{
@@ -1038,6 +1066,7 @@ async function bootVisuals() {
     $('loadMessage').textContent = 'Decodificando materiales y vehículo 3D…';
     const tasks = [
       loadSurface(roadMat, 'weathered-asphalt-color.jpg', 'weathered-asphalt-normal.jpg', 55, urls),
+      loadSurface(geographicAsphalt, 'weathered-asphalt-color.jpg', 'weathered-asphalt-normal.jpg', 4, urls),
       loadSurface(pavement, 'urban-paving-color.jpg', 'urban-paving-normal.jpg', 9, urls),
       loadSurface(concrete, 'concrete-color.jpg', 'concrete-normal.jpg', 4, urls),
       loadSurface(signatureStone, 'stone-brick-color.jpg', 'stone-brick-normal.jpg', 7, urls),

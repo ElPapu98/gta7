@@ -20,6 +20,7 @@ export const assets = [
   { name: 'sunset.hdr', url: 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/industrial_sunset_puresky_1k.hdr', min: 200_000 },
   { name: 'concept-car.glb', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb', min: 2_000_000 },
   { name: 'cesium-man.glb', url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CesiumMan/glTF-Binary/CesiumMan.glb', min: 200_000 },
+  { name: 'sam-walk.glb', url: 'https://www.innerscene.com/api/library/relaxed-walk-sam-3d-person-animated-732f1206/download', min: 5_000_000, optional: true },
 ];
 
 const polyModels = [
@@ -57,11 +58,16 @@ export async function downloadAssets(directory, fetcher = fetch) {
       bytes = await readFile(path);
       if (bytes.byteLength < item.min) throw Error('incomplete cache');
     } catch {
-      const response = await fetcher(item.url, { signal: AbortSignal.timeout(90000) });
-      if (!response.ok) throw Error(`Asset ${item.name}: HTTP ${response.status}`);
-      bytes = Buffer.from(await response.arrayBuffer());
-      if (bytes.byteLength < item.min) throw Error(`Asset ${item.name}: unexpectedly short (${bytes.byteLength} bytes)`);
-      await writeFile(path, bytes);
+      try {
+        const response = await fetcher(item.url, { signal: AbortSignal.timeout(90000) });
+        if (!response.ok) throw Error(`Asset ${item.name}: HTTP ${response.status}`);
+        bytes = Buffer.from(await response.arrayBuffer());
+        if (bytes.byteLength < item.min) throw Error(`Asset ${item.name}: unexpectedly short (${bytes.byteLength} bytes)`);
+        await writeFile(path, bytes);
+      }catch(error){
+        if(item.optional){console.warn(`OPTIONAL ${item.name}: ${error.message}`);continue;}
+        throw error;
+      }
     }
     index.push({ name: item.name, bytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex'), source: item.url });
     console.log(`ASSET ${item.name}: ${(bytes.byteLength / 1048576).toFixed(2)} MiB`);

@@ -13,6 +13,11 @@ The optional `?city=portoviejo` retains the earlier setting.
 - OSM contributors are credited in the permanent in-game footer.
   OpenStreetMap data is ODbL 1.0: https://www.openstreetmap.org/copyright
   Review derivative-database obligations before distributing extracted caches.
+  The release workflow now attempts to store a versioned Quito snapshot at
+  `assets/maps/quito.json` to reduce startup failures and avoid routinely
+  querying public Overpass instances from player devices. If the build-time
+  extract is unavailable, the client still uses the live fallback and labels
+  the fictional district when neither source responds.
 - Mapzen/Tilezen Terrarium elevation tiles from the public AWS dataset:
   https://registry.opendata.aws/terrain-tiles/
   Terrain elevation is sampled in metres and converted to relative heights
@@ -23,6 +28,10 @@ The optional `?city=portoviejo` retains the earlier setting.
   https://github.com/tilezen/joerd/blob/master/docs/attribution.md
 - Nearby facade windows are stylized, deterministic visual approximations,
   not survey-accurate or photogrammetric building imagery.
+- Optional 20 MB skinned pedestrian asset `sam-walk.glb`, originally by
+  Innerscene/MakeHuman under CC0, loads after the first playable frame and
+  replaces the lightweight sample character if available. It may be too heavy
+  for some mobile connections and remains optional.
 
 ## Official Quito datasets investigated, not yet incorporated
 

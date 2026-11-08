@@ -13,6 +13,7 @@ The original game code and procedural district remain separate from the followin
 | `sunset.hdr` | [Poly Haven: Industrial Sunset (Pure Sky)](https://polyhaven.com/a/industrial_sunset_puresky) | CC0 1.0 | Poly Haven; see current asset page for authors |
 | `concept-car.glb` | [Khronos glTF Sample Assets: CarConcept](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) | CC BY 4.0 | © 2024 Darmstadt Graphics Group GmbH; Eric Chadwick — model and textures. Logos carry independent Khronos trademark terms. |
 | `cesium-man.glb` | [Khronos glTF Sample Assets: CesiumMan](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan) | CC BY 4.0 | © 2017 Cesium, model, texture and skeletal animation. Cesium marks carry separate trademark terms. |
+| `sam-walk.glb` (optional) | [Innerscene: Relaxed Walk Sam](https://www.innerscene.com/tools/library/3d-parts/relaxed-walk-sam-3d-person-animated-732f1206) | CC0 1.0 | Innerscene, adapted from MakeHuman CC0 body, rig and skin; original walking animation. |
 | `urban-facade.glb` | [Poly Haven: Modular Urban Apartments Facade](https://polyhaven.com/a/modular_urban_apartments_facade) | CC0 1.0 | Poly Haven artists |
 | `street-lamp.glb` | [Poly Haven: Street Lamp 01](https://polyhaven.com/a/street_lamp_01) | CC0 1.0 | Poly Haven artists |
 | `trash-can.glb` | [Poly Haven: Metal Trash Can](https://polyhaven.com/a/metal_trash_can) | CC0 1.0 | GurJas Studios |

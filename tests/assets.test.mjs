@@ -11,6 +11,6 @@ test('every bundled visual resource has a unique safe path and a trusted source'
     assert.ok(asset.min >= 100_000);
     const url = new URL(asset.url);
     assert.equal(url.protocol, 'https:');
-    assert.ok(['dl.polyhaven.org', 'raw.githubusercontent.com'].includes(url.hostname));
+    assert.ok(['dl.polyhaven.org', 'raw.githubusercontent.com', 'www.innerscene.com'].includes(url.hostname));
   }
 });

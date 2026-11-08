@@ -39,12 +39,21 @@ export function roadWidth(highway) {
     residential: 7, unclassified: 7, service: 4.5, living_street: 5 })[highway] || 6;
 }
 
-export async function fetchCity(origin = PORTOVIEJO, { signal } = {}) {
+export async function fetchCity(origin = PORTOVIEJO, { signal, useBundled = true } = {}) {
+  if (useBundled && origin.name) {
+    try {
+      const response = await fetch(`./assets/maps/${origin.name.toLowerCase()}.json`, {signal});
+      if (response.ok) {
+        const local = await response.json();
+        if (Array.isArray(local.roads) && local.roads.length >= 15 && Array.isArray(local.buildings)) return local;
+      }
+    } catch (error) { if(signal?.aborted) throw error; }
+  }
   const { lat, lon } = origin;
   const dLat = 0.0113, dLon = 0.0113;
   const bbox = `${lat-dLat},${lon-dLon},${lat+dLat},${lon+dLon}`;
   const query = `[out:json][timeout:35];(way["highway"](${bbox});way["building"](${bbox});way["leisure"="park"](${bbox});way["natural"="water"](${bbox});way["waterway"="riverbank"](${bbox}););out geom;`;
-  const endpoints = ['https://overpass.kumi.systems/api/interpreter', 'https://overpass-api.de/api/interpreter'];
+  const endpoints = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
   for (const endpoint of endpoints) {
     try {
       const response = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, { signal });

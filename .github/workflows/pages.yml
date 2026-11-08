@@ -24,11 +24,13 @@ jobs:
       - run: npm test
       - name: Stage licensed PBR materials, HDRI and 3D vehicle
         run: npm run assets
+      - name: Download and cache open city geometry
+        run: node tools/build-city-map.mjs
       - name: Prepare static site
         run: |
           mkdir -p _site/src
           cp index.html _site/
-          cp index.html _site/v0.11.html
+          cp index.html _site/v0.12.html
           cp src/scene3d.js src/portoviejo.js src/terrain.js src/gameplay.js src/main.js src/simulation.js src/asset-stream.js src/controls.js src/character-motor.js src/style.css _site/src/
           cp -r assets _site/assets
           touch _site/.nojekyll
@@ -43,11 +45,11 @@ jobs:
           set -euo pipefail
           base="${{ steps.deployment.outputs.page_url }}"
           for attempt in 1 2 3 4 5; do
-            if curl -fsS "${base}v0.11.html" | grep 'VERSIÓN 0.11.0' >/dev/null; then break; fi
+            if curl -fsS "${base}v0.12.html" | grep 'VERSIÓN 0.12.0' >/dev/null; then break; fi
             sleep 3
           done
-          curl -fsS "${base}v0.11.html" | grep 'VERSIÓN 0.11.0' >/dev/null
-          curl -fsS "${base}src/scene3d.js?v=0.11.0" | grep 'fetchCity' >/dev/null
+          curl -fsS "${base}v0.12.html" | grep 'VERSIÓN 0.12.0' >/dev/null
+          curl -fsS "${base}src/scene3d.js?v=0.12.0" | grep 'fetchCity' >/dev/null
           curl -fsS "${base}src/portoviejo.js" | grep 'CITY_CONFIG' >/dev/null
           curl -fsS "${base}src/terrain.js" | grep 'loadTerrain' >/dev/null
           curl -fsS "${base}src/controls.js?v=0.10.0" | grep 'toggleTouchSprint' >/dev/null

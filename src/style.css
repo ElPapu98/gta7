@@ -21,3 +21,51 @@
 .logo .build-id{color:#f5d49e;font-size:9px;letter-spacing:1.2px;margin-top:4px}
 @media(hover:none) and (pointer:coarse){#touchControls{display:block}.minimap{bottom:190px}.speed{bottom:188px}.mission{top:130px;right:10px;max-height:205px;overflow:hidden}.buttons{top:75px;left:10px}.location{display:none}.prompt{display:none}}
 @media(max-width:460px){#joystick{width:110px;height:110px;bottom:22px;left:18px}#stick{width:48px;height:48px;left:29px;top:29px}#touchRun{bottom:136px;left:24px}#touchVehicle{bottom:112px;right:18px}#touchInteract{bottom:38px;right:18px}.minimap{bottom:150px;width:100px}.minimap canvas{width:100px;height:100px}.speed{bottom:155px}}
+
+/* v0.12 — compact game HUD. Prioritize the world over floating panels. */
+#menuToggle,#missionToggle{display:none}
+.hud{z-index:8}.hudright>a{color:#f0dfc1;font-size:10px;text-decoration:none;font-weight:800;letter-spacing:1px;padding:9px 3px}
+.hudright>a:hover{color:#fff}.mission{z-index:7}.buttons{z-index:8}.minimap{border-radius:12px;overflow:hidden;border:1px solid #c4ded83d;background:#102629ca}
+.mission{background:linear-gradient(145deg,#101f25e8,#14262ada);border:1px solid #d2ebe13f;border-radius:14px}
+.mission h3{font-size:22px}.mission .progress{border-radius:8px;overflow:hidden}
+#touchControls button{letter-spacing:.4px}
+@media(max-width:850px){
+  .hud{top:calc(10px + env(safe-area-inset-top,0px));left:12px;right:12px;align-items:flex-start}
+  .logo{gap:8px;background:#0a1d22b6;backdrop-filter:blur(16px);border:1px solid #c9e3d62b;border-radius:12px;padding:6px 9px 6px 6px;text-shadow:none}
+  .insignia{width:31px;height:31px;font-size:18px;transform:none;border-radius:6px}
+  .logo strong{font-size:20px;line-height:1}.logo small{font-size:8px;letter-spacing:1.1px;margin-top:3px}
+  .logo .build-id{display:none}
+  .hudright{position:absolute;right:0;top:0;display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:0;background:transparent;border:0;max-width:180px}
+  #menuToggle{display:block;font-size:20px;line-height:1;padding:7px 12px;align-self:flex-end;border-radius:10px;background:#0c2025e3;color:#f5ddae;border:1px solid #c9e3d63d}
+  .hudright>:not(#menuToggle){display:none}
+  .hudright.open{padding:5px 8px 9px;background:#0a1b20ef;backdrop-filter:blur(18px);border:1px solid #bed6ce50;border-radius:12px;box-shadow:0 16px 32px #0008}
+  .hudright.open>:not(#menuToggle){display:block;text-align:center}
+  .hudright.open .live{font-size:9px;letter-spacing:.4px;max-width:160px;white-space:normal}
+  .hudright.open button:not(#menuToggle){width:100%;font-size:10px;padding:9px 12px}
+  .buttons{display:none;top:calc(225px + env(safe-area-inset-top,0px));left:auto;right:12px;flex-direction:column;gap:5px;max-width:170px}
+  .buttons.open{display:flex}.buttons button{font-size:9px;padding:9px 12px;border-radius:9px}
+  .mission{top:calc(68px + env(safe-area-inset-top,0px));right:12px;width:184px;max-height:none;overflow:visible;padding:10px 12px;box-shadow:0 10px 28px #0007}
+  .mission-top{gap:5px;letter-spacing:.5px;font-size:8px}
+  .mission-top strong{font-size:15px}
+  #missionToggle{display:block;background:#d9bc87;color:#102226;border:0;border-radius:6px;padding:0 6px;font-size:18px;line-height:22px;cursor:pointer}
+  .mission h3{font-size:17px;margin:5px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mission p{font-size:10px;margin:8px 0;line-height:1.45}
+  .mission-bottom{font-size:8px;line-height:1.4}.mission .progress{margin-top:7px}
+  .mission.compact p,.mission.compact .mission-bottom,.mission.compact .progress{display:none}
+  .compass{right:21px;top:calc(188px + env(safe-area-inset-top,0px));font-size:10px}
+  .minimap{left:12px;top:calc(72px + env(safe-area-inset-top,0px));bottom:auto;width:116px}
+  .minimap canvas{width:116px;height:116px}.maplabel{font-size:7px;letter-spacing:0;padding:6px}
+  .speed{right:20px;bottom:210px}.speed b{font-size:32px}.speed span{font-size:9px}
+  .notice{top:40%;font-size:11px;min-width:160px;text-align:center}
+  #touchLook{top:24%;height:45%}
+}
+@media(max-width:460px){
+  .logo strong{font-size:18px}.logo small{font-size:7px}.insignia{width:27px;height:27px;font-size:16px}
+  .mission{width:166px;right:10px}.mission h3{font-size:15px}
+  .minimap{left:10px;width:103px}.minimap canvas{width:103px;height:103px}
+  #joystick{left:20px;bottom:calc(22px + env(safe-area-inset-bottom,0px));width:108px;height:108px}
+  #touchRun{left:31px;bottom:calc(140px + env(safe-area-inset-bottom,0px))}
+  #touchVehicle{right:20px;bottom:calc(115px + env(safe-area-inset-bottom,0px))}
+  #touchInteract{right:20px;bottom:calc(34px + env(safe-area-inset-bottom,0px))}
+  .speed{bottom:calc(205px + env(safe-area-inset-bottom,0px));right:18px}
+}
