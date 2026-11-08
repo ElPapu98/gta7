@@ -8,6 +8,10 @@ import { movement, readGamepad, toggleTouchSprint } from './controls.js?v=0.10.0
 import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.10.0';
 import { createWorld, step, incident } from './simulation.js?v=0.10.0';
 import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.10.0';
+import { fetchCity, buildingHeight, roadWidth, CITY_CONFIG } from './portoviejo.js';
+import { loadTerrain } from './terrain.js';
+const cityKey = new URLSearchParams(location.search).get('city') === 'portoviejo' ? 'portoviejo' : 'quito';
+const cityConfig = CITY_CONFIG[cityKey];
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -126,6 +130,7 @@ const facadeMats = ['#b4ad9e','#aaaba2','#777f7d','#b3a48e','#879a9c','#c0b4a2',
 const glassMat = std('#304d59', .22, .5), darkMetal = std('#313b3c', .52, .5);
 
 // The road grid is dimensioned in world metres, with building blocks between avenues.
+const beforeFictionalDistrict = new Set(scene.children);
 const radius = 4, spacing = 92, streetWidth = 23;
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(1600,1600), std('#7f886a'));
 ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
@@ -377,6 +382,178 @@ for(const [x,z] of [[-24,18],[27,-18],[20,29]]){
   box(scene,.15,.58,.15,x+.92,.37,z,roadFurniture);
 }
 
+const fictionalDistrict = scene.children.filter(child => !beforeFictionalDistrict.has(child));
+let geographicRoads = null;
+let terrainHeightAt = () => 0;
+let geographicCars = [], geographicWalkers = [];
+let vehicleTemplate = null;
+function generateGeographicAgents() {
+  if(!geographicRoads)return;
+  const paths=[];
+  for(const feature of geographicRoads)for(let i=1;i<feature.points.length;i++) {
+    const a=feature.points[i-1],b=feature.points[i];
+    const length=Math.hypot(b.x-a.x,b.z-a.z);
+    const center=Math.hypot((a.x+b.x)/2,(a.z+b.z)/2);
+    if(length>28 && length<220 && center<480 && !['motorway','trunk'].includes(feature.tags.highway))
+      paths.push({a,b,length,width:roadWidth(feature.tags.highway)});
+  }
+  if(!paths.length)return;
+  geographicWalkers=pedestrians.map((_,i)=>{
+    const path=paths[(i*17+7)%paths.length];
+    const nx=-(path.b.z-path.a.z)/path.length,nz=(path.b.x-path.a.x)/path.length;
+    const side=i%2===0?1:-1,offset=side*(path.width/2+1.5);
+    return {a:{x:path.a.x+nx*offset,z:path.a.z+nz*offset},
+      b:{x:path.b.x+nx*offset,z:path.b.z+nz*offset},t:(i*.137)%1,
+      direction:i%3?1:-1,speed:1.05+(i%5)*.16,length:path.length};
+  });
+  for(const item of geographicCars)scene.remove(item.root);
+  geographicCars=[];
+  if(!vehicleTemplate)return;
+  const carCount=mobileGpu?5:12;
+  for(let i=0;i<Math.min(carCount,paths.length);i++) {
+    const path=paths[(i*13+3)%paths.length];
+    const root=new THREE.Group(),body=vehicleTemplate.clone(true);
+    body.traverse(node=>{if(node.isMesh){node.castShadow=false;node.receiveShadow=true;}});
+    root.add(body);scene.add(root);
+    geographicCars.push({root,path,t:(i*.113)%1,direction:i%3?-1:1,speed:7+i%4*2});
+  }
+}
+function polygonMesh(points, height, material, elevation = 0) {
+  const outline = points.slice(0, -1).filter(p => Number.isFinite(p.x) && Number.isFinite(p.z));
+  if (outline.length < 3 || outline.length > 120) return null;
+  const shape = new THREE.Shape();
+  shape.moveTo(outline[0].x, -outline[0].z);
+  for (const p of outline.slice(1)) shape.lineTo(p.x, -p.z);
+  shape.closePath();
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false, curveSegments: 1 });
+  geometry.rotateX(-Math.PI / 2);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = .12 + elevation;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function installGeographicCity(data, elevationAt = () => 0) {
+  const city = new THREE.Group();
+  const asphalt = std('#34383b', .97), park = std('#567f48'), water = std('#467d85', .28);
+  const walls = ['#cbb99e', '#e0d4bf', '#aeb0a7', '#d8c3a5', '#b7aa98', '#d7d4cd'].map(c => std(c, .92));
+  const roof = [std('#8b8580'),std('#a0a2a0'),std('#a78d7c'),std('#656b70')];
+  const cityGroundGeometry = new THREE.PlaneGeometry(2800, 2800, 100, 100);
+  cityGroundGeometry.rotateX(-Math.PI / 2);
+  const groundPositions = cityGroundGeometry.attributes.position;
+  for(let i=0;i<groundPositions.count;i++) {
+    const x=groundPositions.getX(i),z=groundPositions.getZ(i);
+    groundPositions.setY(i,elevationAt(x,z)-.09);
+  }
+  cityGroundGeometry.computeVertexNormals();
+  const cityGround = new THREE.Mesh(cityGroundGeometry, std('#84926e'));
+  cityGround.receiveShadow = true; city.add(cityGround);
+  const renderArea = points => points.every(p => Math.abs(p.x) < 1400 && Math.abs(p.z) < 1400);
+  for (const feature of [...data.parks, ...data.waters]) {
+    if (!renderArea(feature.points)) continue;
+    const center=feature.points.reduce((a,p)=>({x:a.x+p.x/feature.points.length,z:a.z+p.z/feature.points.length}),{x:0,z:0});
+    const mesh = polygonMesh(feature.points, .035, data.waters.includes(feature) ? water : park,elevationAt(center.x,center.z));
+    if (mesh) city.add(mesh);
+  }
+  for (const feature of data.roads) {
+    if (!renderArea(feature.points)) continue;
+    const width = roadWidth(feature.tags.highway);
+    for (let i = 1; i < feature.points.length; i++) {
+      const a = feature.points[i-1], b = feature.points[i];
+      const dx = b.x-a.x, dz = b.z-a.z, length = Math.hypot(dx,dz);
+      if (length < .3 || length > 600) continue;
+      const ya=elevationAt(a.x,a.z), yb=elevationAt(b.x,b.z);
+      const rise=yb-ya;
+      const segment = new THREE.Mesh(geometry.box, asphalt);
+      segment.position.set((a.x+b.x)/2, (ya+yb)/2+.12, (a.z+b.z)/2);
+      segment.scale.set(width, .16, Math.hypot(length,rise)+.8);
+      segment.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(dx,rise,dz).normalize());
+      segment.receiveShadow = true; city.add(segment);
+    }
+  }
+  const newBuildings = [], windowMatrices = [];
+  const windowGeometry = new THREE.BoxGeometry(1,1,.10);
+  const windowMat = new THREE.MeshStandardMaterial({color:'#274653',metalness:.36,roughness:.24,emissive:'#131c20',emissiveIntensity:.12});
+  const transform = new THREE.Object3D();
+  const maxWindows = mobileGpu ? 4500 : 12500;
+  for (const [index, feature] of data.buildings.entries()) {
+    if (index > (mobileGpu ? 1700 : 4000) || !renderArea(feature.points)) continue;
+    const xValues = feature.points.map(p=>p.x), zValues = feature.points.map(p=>p.z);
+    const minX = Math.min(...xValues), maxX = Math.max(...xValues);
+    const minZ = Math.min(...zValues), maxZ = Math.max(...zValues);
+    if (maxX-minX < 2 || maxZ-minZ < 2 || (maxX-minX)*(maxZ-minZ) > 18000) continue;
+    const height=buildingHeight(feature.tags);
+    const centerX=(minX+maxX)/2,centerZ=(minZ+maxZ)/2;
+    const base=elevationAt(centerX,centerZ);
+    const mesh = polygonMesh(feature.points, height, [roof[index%roof.length],walls[index%walls.length]], base);
+    if (!mesh) continue;
+    city.add(mesh);
+    newBuildings.push({ x:centerX, z:centerZ, w:maxX-minX, d:maxZ-minZ });
+    // Window units are a visual reconstruction, not measured facade data.
+    // Instancing preserves draw-call budgets on mid-range mobile devices.
+    if(Math.hypot(centerX,centerZ)<370 && windowMatrices.length<maxWindows) {
+      for(let j=1;j<feature.points.length;j++) {
+        const a=feature.points[j-1],b=feature.points[j];
+        const dx=b.x-a.x,dz=b.z-a.z,edge=Math.hypot(dx,dz);
+        if(edge<5 || edge>100)continue;
+        const floors=Math.min(18,Math.floor(height/3.1));
+        const columns=Math.min(28,Math.floor(edge/3.5));
+        for(let floor=0;floor<floors;floor++)for(let col=0;col<columns;col++) {
+          if(windowMatrices.length>=maxWindows)break;
+          const t=(col+.5)/columns;
+          transform.position.set(a.x+dx*t,base+2.1+floor*3.1,a.z+dz*t);
+          transform.rotation.set(0,Math.atan2(-dz,dx),0);
+          transform.scale.set(Math.min(1.7,edge/columns*.52),1.55,1);
+          transform.updateMatrix();windowMatrices.push(transform.matrix.clone());
+        }
+      }
+    }
+  }
+  if(windowMatrices.length) {
+    const windows=new THREE.InstancedMesh(windowGeometry,windowMat,windowMatrices.length);
+    windowMatrices.forEach((matrix,index)=>windows.setMatrixAt(index,matrix));
+    windows.instanceMatrix.needsUpdate=true; windows.frustumCulled=false;city.add(windows);
+  }
+  if (!city.children.length || !newBuildings.length) return false;
+  for (const child of fictionalDistrict) child.visible = false;
+  buildings.splice(0, buildings.length, ...newBuildings);
+  scene.add(city);
+  geographicRoads = data.roads;
+  terrainHeightAt = elevationAt;
+  generateGeographicAgents();
+  for(const vehicle of vehicles)vehicle.visible=false; // synthetic traffic belongs to the old grid
+  const candidates=[];
+  for(const feature of data.roads)for(let i=1;i<feature.points.length;i++) {
+    const a=feature.points[i-1],b=feature.points[i],x=(a.x+b.x)/2,z=(a.z+b.z)/2;
+    if(Math.hypot(x,z)<170 && Math.hypot(b.x-a.x,b.z-a.z)>8)
+      candidates.push({x,z,d:Math.hypot(x,z)});
+  }
+  candidates.sort((a,b)=>a.d-b.d);
+  const spawn=candidates.find(p=>!newBuildings.some(b=>Math.abs(p.x-b.x)<b.w/2+1.5&&Math.abs(p.z-b.z)<b.d/2+1.5));
+  if(spawn) {
+    player.position.set(spawn.x,elevationAt(spawn.x,spawn.z),spawn.z);
+    motor.x=spawn.x;motor.z=spawn.z;motor.vx=motor.vz=0;
+    heroCar.position.set(spawn.x+5,elevationAt(spawn.x+5,spawn.z),spawn.z);
+  }
+  document.querySelector('.location .tag').textContent = `${cityConfig.name.toUpperCase()} · ${cityConfig.province.toUpperCase()} · ECUADOR`;
+  document.querySelector('.location h2').textContent = cityConfig.name;
+  document.querySelector('.location p').textContent = 'Calles y huellas de edificios de OpenStreetMap';
+  document.querySelector('.maplabel').firstChild.textContent = `${cityConfig.name.toUpperCase()} `;
+  document.querySelector('.logo small').textContent = `${cityConfig.name.toUpperCase()} / ${cityConfig.province.toUpperCase()}`;
+  const status = document.getElementById('streamStatus');
+  status.textContent = `OSM: ${data.roads.length} VÍAS · ${newBuildings.length} EDIFICIOS · ${windowMatrices.length} VENTANAS`;
+  return true;
+}
+
+Promise.all([fetchCity(cityConfig, { signal: AbortSignal.timeout(45000) }),
+  loadTerrain(cityConfig, { signal: AbortSignal.timeout(12000) }).catch(() => () => 0)])
+  .then(([data,elevation]) => { if (!installGeographicCity(data,elevation)) throw new Error('Datos incompletos'); })
+  .catch(() => {
+    document.querySelector('.location .tag').textContent = `${cityConfig.name.toUpperCase()} · MODO DE RESPALDO`;
+    document.querySelector('.location h2').textContent = `${cityConfig.name} (prototipo)`;
+    document.querySelector('.location p').textContent = 'Sin conexión OSM: geometría ficticia temporal';
+  });
+
 const tireMat=std('#171b1c',.95), rimMat=std('#929da0',.4,.6), windshield=std('#28414c',.16,.45);
 function carModel(color='#d8d9d1',size=1){
   const group=new THREE.Group();const body=std(color,.28,.52);
@@ -429,6 +606,8 @@ function installDetailedCar(loaded) {
   model.traverse(node => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
   while (heroCar.children.length) heroCar.remove(heroCar.children[0]);
   heroCar.add(model);
+  vehicleTemplate=model;
+  generateGeographicAgents();
   notice('Vehículo glTF de alta calidad cargado');
 }
 
@@ -558,13 +737,15 @@ function move(dt, input){
     obj.rotation.y+=steer*velocity*dt*.035;
     const dir=new THREE.Vector3(Math.sin(obj.rotation.y),0,Math.cos(obj.rotation.y));
     const target=obj.position.clone().addScaledVector(dir,velocity*dt);
-    if(!blocked(target.x,target.z))obj.position.copy(target);else velocity=0;
+    if(!blocked(target.x,target.z)){
+      obj.position.copy(target);obj.position.y=terrainHeightAt(obj.position.x,obj.position.z);
+    }else velocity=0;
     yaw+=shortestTurn(yaw,obj.rotation.y-Math.PI)*(1-Math.exp(-2.4*dt));
     player.visible=false;
     $('speedValue').textContent=Math.round(Math.abs(velocity)*3.6);
   }else{
     stepMotor(motor,input,yaw,dt,blocked);
-    obj.position.set(motor.x,0,motor.z);
+    obj.position.set(motor.x,terrainHeightAt(motor.x,motor.z),motor.z);
     obj.rotation.y=motor.heading;
     if(walkAction){walkAction.paused=!motor.moving;walkAction.timeScale=THREE.MathUtils.clamp(motor.speed/4.4,.5,1.8);}
     characterMixer?.update(dt);
@@ -683,14 +864,26 @@ const map=$('map'),mc=map.getContext('2d');
 function updateMap(){
   const w=180;mc.clearRect(0,0,w,w);mc.fillStyle='#243b3c';mc.fillRect(0,0,w,w);
   const p=active().position,scale=.2;
-  for(let i=-radius;i<=radius;i++){
+  if (geographicRoads) {
+    mc.strokeStyle='#8c9e91'; mc.lineWidth=2;
+    for (const road of geographicRoads) {
+      mc.beginPath();
+      road.points.forEach((point,index) => {
+        const x=90+(point.x-p.x)*scale, y=90+(point.z-p.z)*scale;
+        if(index===0) mc.moveTo(x,y); else mc.lineTo(x,y);
+      });
+      mc.stroke();
+    }
+  } else for(let i=-radius;i<=radius;i++){
     mc.strokeStyle='#8c9e91';mc.lineWidth=4;mc.beginPath();mc.moveTo(90+(-radius*spacing-p.x)*scale,90+(i*spacing-p.z)*scale);mc.lineTo(90+(radius*spacing-p.x)*scale,90+(i*spacing-p.z)*scale);mc.stroke();
     mc.beginPath();mc.moveTo(90+(i*spacing-p.x)*scale,90+(-radius*spacing-p.z)*scale);mc.lineTo(90+(i*spacing-p.x)*scale,90+(radius*spacing-p.z)*scale);mc.stroke();
   }
   mc.fillStyle='#d3b789';for(const b of buildings)mc.fillRect(90+(b.x-b.w/2-p.x)*scale,90+(b.z-b.d/2-p.z)*scale,b.w*scale,b.d*scale);
   mc.fillStyle='#f3c67e';mc.beginPath();mc.arc(90,90,4,0,Math.PI*2);mc.fill();
   const goal=objective(campaign);mc.fillStyle='#ffe0a0';mc.beginPath();mc.arc(90+(goal.x-p.x)*scale,90+(goal.z-p.z)*scale,5,0,Math.PI*2);mc.fill();
-  $('coords').textContent=`${Math.round(p.x+400)} · ${Math.round(p.z+400)}`;
+  $('coords').textContent=geographicRoads
+    ? `${(cityConfig.lat-p.z/111320).toFixed(4)}, ${(cityConfig.lon+p.x/(111320*Math.cos(cityConfig.lat*Math.PI/180))).toFixed(4)}`
+    : `${Math.round(p.x+400)} · ${Math.round(p.z+400)}`;
 }
 function refreshMission(){
   const job=activeJob(campaign), target=objective(campaign), position=active().position;
@@ -703,8 +896,8 @@ function refreshMission(){
   $('missionDistance').textContent=target.text.toUpperCase()+' · '+distance+' m';
   $('missionTime').textContent=job?Math.floor(campaign.secondsLeft/60)+':'+String(Math.floor(campaign.secondsLeft%60)).padStart(2,'0'):'F · INTERACTUAR';
   $('missionProgress').style.width=job?Math.max(0,campaign.secondsLeft/job.seconds*100)+'%':'100%';
-  objectiveGroup.position.set(target.x,0,target.z);
-  const roadPosition=new THREE.Vector3(position.x,1.2,position.z),goalPosition=new THREE.Vector3(target.x,1.2,target.z);
+  objectiveGroup.position.set(target.x,terrainHeightAt(target.x,target.z),target.z);
+  const roadPosition=new THREE.Vector3(position.x,terrainHeightAt(position.x,position.z)+1.2,position.z),goalPosition=new THREE.Vector3(target.x,terrainHeightAt(target.x,target.z)+1.2,target.z);
   routeLine.geometry.dispose();routeLine.geometry=new THREE.BufferGeometry().setFromPoints([roadPosition,goalPosition]);routeLine.computeLineDistances();
 }
 let previous=performance.now(),mapTimer=0,simAccumulator=0;
@@ -714,28 +907,49 @@ function animate(now){
   const input=movement(keys,pad,touch);
   move(dt,input);
   const focusPosition=active().position;
-  for(const prop of highDetailProps)prop.visible=prop.position.distanceToSquared(focusPosition)<140*140;
+  for(const prop of highDetailProps)prop.visible=!geographicRoads && prop.position.distanceToSquared(focusPosition)<140*140;
   yaw-=pad.lookX*dt*2.5;
   pitch=THREE.MathUtils.clamp(pitch+pad.lookY*dt*1.5,.08,1.22);
   for(const [name,pressed] of Object.entries(pad.actions))if(pressed&&!previousActions[name])action(name);
   previousActions=pad.actions;
   const jobEvent=tickGame(campaign,dt);
   if(jobEvent){notice(`Tiempo agotado: ${jobEvent.job.title}`);refreshMission();}
-  if(trafficEnabled){for(const car of vehicles){if(!car.userData.speed)continue;const forward=new THREE.Vector3(Math.sin(car.rotation.y),0,Math.cos(car.rotation.y));car.position.addScaledVector(forward,car.userData.speed*dt);if(Math.abs(car.position.x)>395)car.position.x*=-.98;if(Math.abs(car.position.z)>395)car.position.z*=-.98;}}
+  if(trafficEnabled && !geographicRoads){for(const car of vehicles){if(!car.userData.speed)continue;const forward=new THREE.Vector3(Math.sin(car.rotation.y),0,Math.cos(car.rotation.y));car.position.addScaledVector(forward,car.userData.speed*dt);if(Math.abs(car.position.x)>395)car.position.x*=-.98;if(Math.abs(car.position.z)>395)car.position.z*=-.98;}}
+  for(const car of geographicCars){
+    car.root.visible=trafficEnabled && car.root.position.distanceToSquared(focusPosition)<360*360;
+    if(!trafficEnabled)continue;
+    car.t+=car.direction*car.speed*dt/car.path.length;
+    if(car.t>1){car.t=1;car.direction=-1;}else if(car.t<0){car.t=0;car.direction=1;}
+    const {a,b,length,width}=car.path;
+    const side=car.direction>0?1:-1;
+    const x=a.x+(b.x-a.x)*car.t-(b.z-a.z)/length*width*.23*side;
+    const z=a.z+(b.z-a.z)*car.t+(b.x-a.x)/length*width*.23*side;
+    car.root.position.set(x,terrainHeightAt(x,z),z);
+    car.root.rotation.y=Math.atan2((b.x-a.x)*car.direction,(b.z-a.z)*car.direction);
+  }
   simAccumulator+=dt;
   while(simAccumulator>=1/30){step(world,1/30);simAccumulator-=1/30;}
   for(let i=0;i<pedestrians.length;i++){
     const a=world.agents[i],x=(a.x-630)*.60,z=(a.y-630)*.60;
+    const pedestrianPath=geographicWalkers[i];
+    if(pedestrianPath){
+      pedestrianPath.t+=pedestrianPath.direction*pedestrianPath.speed*dt/pedestrianPath.length;
+      if(pedestrianPath.t>1){pedestrianPath.t=1;pedestrianPath.direction=-1;}
+      else if(pedestrianPath.t<0){pedestrianPath.t=0;pedestrianPath.direction=1;}
+    }
+    const px=pedestrianPath?pedestrianPath.a.x+(pedestrianPath.b.x-pedestrianPath.a.x)*pedestrianPath.t:x;
+    const pz=pedestrianPath?pedestrianPath.a.z+(pedestrianPath.b.z-pedestrianPath.a.z)*pedestrianPath.t:z;
+    const py=terrainHeightAt(px,pz);
     const detail=detailedCitizens.get(i);
     if(detail){
       const {root,mixer}=detail;
-      root.position.set(x,0,z);
-      const dx=x-detail.lastX,dz=z-detail.lastZ;
+      root.position.set(px,py,pz);
+      const dx=px-detail.lastX,dz=pz-detail.lastZ;
       if(Math.hypot(dx,dz)>.002)root.rotation.y=Math.atan2(dx,dz);
       root.visible=root.position.distanceToSquared(active().position)<110*110;
       if(root.visible)mixer?.update(dt);
-      detail.lastX=x;detail.lastZ=z;
-    }else pedestrians[i].position.set(x,0,z);
+      detail.lastX=px;detail.lastZ=pz;
+    }else pedestrians[i].position.set(px,py,pz);
   }
   diamond.rotation.y+=dt*1.2;diamond.position.y=7+Math.sin(now*.002)*.7;ring.rotation.z+=dt*.6;
   for(let i=0;i<animatedWater.length;i++){
