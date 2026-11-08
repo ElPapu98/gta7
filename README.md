@@ -1,5 +1,7 @@
 # GTA7.WASM — Living City Lab
 
+> **Investigación de streaming (ADR-001):** [arquitectura, plan de assets hiperrealistas y requisitos de `rangeplay`](docs/ADR-001-rangeplay.md). Hay un precheck de cabeceras con `npm run doctor -- https://HOST/` y un archivo `_headers` para hosts compatibles. **La preview actual aún no ejecuta rangeplay ni contiene assets fotorrealistas.**
+
 Original open-world simulation research project. This repository is **pre-alpha**, not a GTA VI-scale game or an official Rockstar product. Version 0.2 adds an interactive, procedural 3D city preview powered by Three.js/WebGL 2. The simulation remains a JavaScript reference; Rust/WASM integration remains a future milestone.
 
 ## Run the verified browser prototype
