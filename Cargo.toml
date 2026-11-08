@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/gta7-core"]
+resolver = "2"
