@@ -4,6 +4,10 @@
 
 **Visual milestone 0.3:** la construcción de Pages descarga materiales PBR de asfalto, pavimento y concreto, un HDRI real y un vehículo glTF detallado. El prototipo sigue siendo una ciudad procedural estilizada, no un entorno AAA; ahora utiliza algunos recursos fotográficos reales y una malla de vehículo de producción. Véase [licencias y créditos](ASSET-CREDITS.md).
 
+**Interaction milestone 0.4:** la pantalla de inicio muestra bytes reales recibidos de los 8 recursos, porcentaje, etapa de decodificación y errores explícitos. Permite reintentar o iniciar el modo de compatibilidad con materiales de respaldo cuando una descarga falla. Compatible con teclado/ratón, gamepads estándar mediante Gamepad API y controles táctiles con joystick virtual. El motor sigue siendo WebGL 2 y JavaScript; el núcleo Rust/WASM y el streaming Rangeplay están en la hoja de ruta, no conectados aún.
+
+La escena incorpora cielo atmosférico `Sky` con posición solar para tres franjas horarias, mapeado PBR y un límite de resolución más conservador en pantallas táctiles. No hay medidas de FPS certificadas en teléfonos o mandos físicos; el rendimiento y la compatibilidad deben validarse en hardware real. La barra de carga mide **bytes de red reales**, no el progreso interno de descompresión o subida de texturas a GPU; esa fase se indica separadamente.
+
 Original open-world simulation research project. This repository is **pre-alpha**, not a GTA VI-scale game or an official Rockstar product. Version 0.2 adds an interactive, procedural 3D city preview powered by Three.js/WebGL 2. The simulation remains a JavaScript reference; Rust/WASM integration remains a future milestone.
 
 ## Run the verified browser prototype
@@ -22,6 +26,8 @@ npm run assets   # descarga los recursos gráficos para la misma experiencia que
 The `.github/workflows/pages.yml` workflow runs tests and deploys a static preview on every push to `main`. In **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. Public project URL: `https://elpapu98.github.io/gta7/`. The workflow publishes only browser assets; the Rust native/WASM build remains experimental.
 
 Move with WASD/arrow keys; hold Shift to run; drag the mouse to rotate the camera; mouse wheel zooms. Approach the golden car and press E to enter/exit; drive with WASD. Press F at the yellow mission marker to accept, collect and deliver packages against a countdown. Contracts earn cash, unlock longer routes and save progress in localStorage. Change the camera, lighting and traffic from the controls. Space records a simulated incident in the underlying reference simulation.
+
+**Mandos estándar (Xbox/PlayStation compatible):** stick izquierdo para caminar o conducir; stick derecho para cámara; botón inferior (A/Cruz) para interactuar; botón izquierdo (X/Cuadrado) para entrar/salir del coche; botón superior (Y/Triángulo) cambia cámara; botón derecho (B/Círculo) activa incidente de simulación; RB/R2 para correr a pie. El navegador debe reconocer el mando con mapeo `standard`; el reconocimiento puede requerir pulsar un botón. **Táctil:** joystick izquierdo, deslizar en zona derecha para cámara, botones CORRER/COCHE/ACCIÓN. El móvil requiere suficiente GPU para WebGL 2 y la escena puede tener bajo rendimiento en hardware modesto.
 
 The 3D scene loads Three.js 0.170.0 as a pinned ES module from jsDelivr. An internet connection is required. It uses procedural geometry with real CC0 PBR materials and HDRI, and a CC BY 4.0 showcase vehicle with attribution. This is still a **stylized architectural preview**, not photorealistic AAA content.
 

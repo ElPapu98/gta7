@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { fetchVisualAssets } from './asset-stream.js';
+import { movement, readGamepad } from './controls.js';
 import { createWorld, step, incident } from './simulation.js';
 import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js';
 
@@ -10,7 +13,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#9caeb5');
 scene.fog = new THREE.FogExp2('#a7ada7', 0.00165);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+const mobileGpu = matchMedia('(pointer:coarse)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio, mobileGpu ? 1.15 : 1.65));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -31,12 +35,21 @@ sun.target.position.set(0, 0, 0);
 scene.add(sun, sun.target);
 const ambient = new THREE.HemisphereLight('#b6d4ff', '#7d715e', 2.0);
 scene.add(ambient);
+const sky = new Sky();
+sky.scale.setScalar(450000);
+sky.material.uniforms.turbidity.value = 6;
+sky.material.uniforms.rayleigh.value = 2.2;
+sky.material.uniforms.mieCoefficient.value = .007;
+sky.material.uniforms.mieDirectionalG.value = .84;
+sky.material.uniforms.sunPosition.value.set(-.58, .47, -.65).normalize();
+scene.add(sky);
+scene.background = null;
 
 const rng = (() => { let s = 76543; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); })();
 const rand = (min, max) => min + rng() * (max - min);
 const choose = a => a[Math.floor(rng() * a.length)];
 const std = (color, roughness = .85, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
-const asphalt = std('#373b3b', 1), pavement = std('#9d9e91'), white = std('#e2ddca'), amber = std('#d4ac66');
+const asphalt = std('#373b3b', 1), pavement = std('#9d9e91'), concrete = std('#aba99b'), white = std('#e2ddca'), amber = std('#d4ac66');
 const greenery = [std('#426b48'), std('#346547'), std('#638354')];
 const geometry = { box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 8), sphere: new THREE.SphereGeometry(1, 9, 7) };
 const buildings = [], vehicles = [], pedestrians = [];
@@ -67,7 +80,7 @@ const roadMat = new THREE.MeshStandardMaterial({ map: roadTexture, roughness: .9
 
 // Asset-backed PBR materials: procedural maps remain usable if assets are unavailable.
 const assetLoader = new THREE.TextureLoader();
-function loadSurface(material, colorPath, normalPath, repeats) {
+async function loadSurface(material, colorPath, normalPath, repeats, urls) {
   const configure = (tex, isColor) => {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(repeats, repeats);
@@ -75,26 +88,16 @@ function loadSurface(material, colorPath, normalPath, repeats) {
     if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   };
-  assetLoader.load('./assets/' + colorPath, tex => {
-    material.map = configure(tex, true);
+  if (urls.has(colorPath)) {
+    material.map = configure(await assetLoader.loadAsync(urls.get(colorPath)), true);
     material.needsUpdate = true;
-  }, undefined, () => console.warn('Fallback procedural texture:', colorPath));
-  assetLoader.load('./assets/' + normalPath, tex => {
-    material.normalMap = configure(tex, false);
+  }
+  if (urls.has(normalPath)) {
+    material.normalMap = configure(await assetLoader.loadAsync(urls.get(normalPath)), false);
     material.normalScale = new THREE.Vector2(.45, .45);
     material.needsUpdate = true;
-  }, undefined, () => console.warn('Normal map unavailable:', normalPath));
+  }
 }
-loadSurface(roadMat, 'asphalt-color.jpg', 'asphalt-normal.jpg', 55);
-loadSurface(pavement, 'pavement-color.jpg', 'pavement-normal.jpg', 9);
-loadSurface(concrete, 'concrete-color.jpg', 'concrete-normal.jpg', 4);
-
-new RGBELoader().load('./assets/sunset.hdr', hdr => {
-  hdr.mapping = THREE.EquirectangularReflectionMapping;
-  scene.environment = hdr;
-  scene.environmentIntensity = .78;
-  console.info('GTA7 PBR: real HDR environment active');
-}, undefined, () => console.warn('HDRI unavailable, using hemisphere lighting'));
 
 function facadeTexture(tint, floors = 10, columns = 5) {
   return texture((g,w,h) => {
@@ -113,7 +116,7 @@ function facadeTexture(tint, floors = 10, columns = 5) {
   });
 }
 const facadeMats = ['#b4ad9e','#aaaba2','#777f7d','#b3a48e','#879a9c','#c0b4a2','#8f8e8b'].map(t => new THREE.MeshStandardMaterial({map:facadeTexture(t),roughness:.79,metalness:.05}));
-const glassMat = std('#304d59', .22, .5), concrete = std('#aba99b'), darkMetal = std('#313b3c', .52, .5);
+const glassMat = std('#304d59', .22, .5), darkMetal = std('#313b3c', .52, .5);
 
 // The road grid is dimensioned in world metres, with building blocks between avenues.
 const radius = 4, spacing = 92, streetWidth = 23;
@@ -275,7 +278,7 @@ const heroCar=carModel('#e2bf83',1.12);heroCar.position.set(5,0,14);scene.add(he
 
 // Detailed, independently licensed glTF showcase vehicle. Its parent remains
 // the drivable entity; a failed download keeps the procedural vehicle playable.
-new GLTFLoader().load('./assets/concept-car.glb', loaded => {
+function installDetailedCar(loaded) {
   const model = loaded.scene;
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());
@@ -291,7 +294,7 @@ new GLTFLoader().load('./assets/concept-car.glb', loaded => {
   while (heroCar.children.length) heroCar.remove(heroCar.children[0]);
   heroCar.add(model);
   notice('Vehículo glTF de alta calidad cargado');
-}, undefined, error => console.warn('Vehicle model unavailable; keeping fallback', error));
+}
 
 // Objective visualization: beacon, ground ring and floating waypoint diamond.
 const objectiveGroup = new THREE.Group();scene.add(objectiveGroup);
@@ -321,6 +324,8 @@ for(let i=0;i<world.agents.length;i++){
 let qualityHigh=true, timeMode=0, trafficEnabled=true, soundEnabled=false, driving=false, cameraMode=0;
 let yaw=.45,pitch=.31,distance=12, velocity=0, steer=0;
 const keys=new Set();let pointerDown=false,lastPointer={x:0,y:0};
+const touch={x:0,y:0,run:false};
+let previousActions={};
 const active = () => driving ? heroCar : player;
 const notice = message => { $('notice').textContent=message;$('notice').classList.add('show');clearTimeout(notice._t);notice._t=setTimeout(()=>$('notice').classList.remove('show'),2600); };
 const angleDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -329,12 +334,12 @@ function blocked(x,z){
   if(Math.abs(x)>390 || Math.abs(z)>390)return true;
   return buildings.some(b=>Math.abs(x-b.x)<b.w/2+1.1&&Math.abs(z-b.z)<b.d/2+1.1);
 }
-function move(dt){
+function move(dt, input){
   const obj=active();
   if(driving){
-    const accel=(keys.has('w')||keys.has('arrowup')?24:0)-(keys.has('s')||keys.has('arrowdown')?30:0);
+    const accel=input.forward>=0?input.forward*24:input.forward*30;
     velocity+=accel*dt;velocity*=Math.pow(.986,dt*60);velocity=THREE.MathUtils.clamp(velocity,-12,34);
-    steer=THREE.MathUtils.lerp(steer,Number(keys.has('a')||keys.has('arrowleft'))-Number(keys.has('d')||keys.has('arrowright')),Math.min(1,dt*7));
+    steer=THREE.MathUtils.lerp(steer,-input.sideways,Math.min(1,dt*7));
     obj.rotation.y+=steer*velocity*dt*.035;
     const dir=new THREE.Vector3(Math.sin(obj.rotation.y),0,Math.cos(obj.rotation.y));
     const target=obj.position.clone().addScaledVector(dir,velocity*dt);
@@ -342,20 +347,20 @@ function move(dt){
     player.visible=false;
     $('speedValue').textContent=Math.round(Math.abs(velocity)*3.6);
   }else{
-    let forward=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));
-    let sideways=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));
+    let forward=input.forward;
+    let sideways=input.sideways;
     const length=Math.hypot(forward,sideways);
     if(length){
       forward/=length;sideways/=length;
       const dx=Math.sin(yaw)*forward+Math.cos(yaw)*sideways;
       const dz=Math.cos(yaw)*forward-Math.sin(yaw)*sideways;
-      const speed=keys.has('shift')?9:5;
+      const speed=input.run?9:5;
       const nx=obj.position.x+dx*speed*dt,nz=obj.position.z+dz*speed*dt;
       if(!blocked(nx,obj.position.z))obj.position.x=nx;
       if(!blocked(obj.position.x,nz))obj.position.z=nz;
       obj.rotation.y=THREE.MathUtils.lerp(obj.rotation.y,Math.atan2(dx,dz),Math.min(1,dt*11));
     }
-    $('speedValue').textContent=length?(keys.has('shift')?'32':'18'):'0';
+    $('speedValue').textContent=length?(input.run?'32':'18'):'0';
   }
   const focus=obj.position.clone().add(new THREE.Vector3(0,driving?1.5:1.6,0));
   const offset=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch)*distance,Math.sin(pitch)*distance+1,Math.cos(yaw)*Math.cos(pitch)*distance);
@@ -367,14 +372,13 @@ function move(dt){
 
 function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 window.addEventListener('resize',resize);resize();
-document.addEventListener('keydown',e=>{
-  const key=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key))e.preventDefault();
-  if(key==='e'&&!e.repeat){
+function action(type){
+  if(type==='vehicle'){
     if(driving){driving=false;player.visible=true;player.position.copy(heroCar.position).add(new THREE.Vector3(2.6,0,0));velocity=0;notice('Has bajado del vehículo');}
     else if(player.position.distanceTo(heroCar.position)<8){driving=true;notice('Vehículo: WASD conducir · E salir');}
     else notice('Acércate al vehículo dorado para conducirlo');
   }
-  if(key==='f'&&!e.repeat){
+  if(type==='interact'){
     const result=interact(campaign,{x:active().position.x,z:active().position.z});
     if(!result){notice('Acércate al marcador amarillo para interactuar');}
     else if(result.type==='accepted')notice(`Nuevo contrato: ${result.job.title} · $${result.job.reward}`);
@@ -385,7 +389,14 @@ document.addEventListener('keydown',e=>{
     }
     refreshMission();
   }
-  if(key===' '&&!e.repeat){const p=active().position;world.player.x=p.x+630;world.player.y=p.z+630;const event=incident(world);notice(`Incidente registrado · ${event.witnesses.length} testigos`);}
+  if(type==='incident'){const p=active().position;world.player.x=p.x+630;world.player.y=p.z+630;const event=incident(world);notice(`Incidente registrado · ${event.witnesses.length} testigos`);}
+  if(type==='camera')$('view').click();
+}
+document.addEventListener('keydown',e=>{
+  const key=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key))e.preventDefault();
+  if(!e.repeat && key==='e')action('vehicle');
+  if(!e.repeat && key==='f')action('interact');
+  if(!e.repeat && key===' ')action('incident');
   keys.add(key);
 });
 document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
@@ -394,14 +405,39 @@ canvas.addEventListener('pointerdown',e=>{pointerDown=true;lastPointer={x:e.clie
 canvas.addEventListener('pointerup',()=>pointerDown=false);
 canvas.addEventListener('pointermove',e=>{if(!pointerDown)return;yaw+=(lastPointer.x-e.clientX)*.005;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastPointer.y)*.003,.08,1.22);lastPointer={x:e.clientX,y:e.clientY};});
 canvas.addEventListener('wheel',e=>{e.preventDefault();distance=THREE.MathUtils.clamp(distance+e.deltaY*.018,5,30);},{passive:false});
+
+// Touch: one bounded analog stick, a separate camera drag zone and distinct
+// action buttons. Pointer capture keeps gestures stable across screen edges.
+const joystick=$('joystick'),stick=$('stick');
+function updateJoystick(event) {
+  const r=joystick.getBoundingClientRect();
+  const x=event.clientX-(r.left+r.width/2),y=event.clientY-(r.top+r.height/2);
+  const radius=r.width*.34,scale=Math.max(1,Math.hypot(x,y)/radius);
+  touch.x=x/scale/radius;touch.y=-y/scale/radius;
+  stick.style.transform=`translate(${x/scale}px,${y/scale}px)`;
+}
+joystick.addEventListener('pointerdown',e=>{e.preventDefault();joystick.setPointerCapture(e.pointerId);updateJoystick(e);});
+joystick.addEventListener('pointermove',e=>{if(joystick.hasPointerCapture(e.pointerId))updateJoystick(e);});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(type,()=>{touch.x=0;touch.y=0;stick.style.transform='';});
+const touchLook=$('touchLook');let lookPointer=null;
+touchLook.addEventListener('pointerdown',e=>{e.preventDefault();touchLook.setPointerCapture(e.pointerId);lookPointer={x:e.clientX,y:e.clientY};});
+touchLook.addEventListener('pointermove',e=>{if(!lookPointer||!touchLook.hasPointerCapture(e.pointerId))return;yaw+=(lookPointer.x-e.clientX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lookPointer.y)*.004,.08,1.22);lookPointer={x:e.clientX,y:e.clientY};});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])touchLook.addEventListener(type,()=>lookPointer=null);
+$('touchVehicle').addEventListener('pointerdown',e=>{e.preventDefault();action('vehicle');});
+$('touchInteract').addEventListener('pointerdown',e=>{e.preventDefault();action('interact');});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])$('touchRun').addEventListener(type,()=>touch.run=false);
+$('touchRun').addEventListener('pointerdown',e=>{e.preventDefault();touch.run=true;});
 $('view').onclick=()=>{cameraMode=(cameraMode+1)%3;notice(['Cámara tercera persona','Cámara cercana','Cámara aérea'][cameraMode]);};
 $('time').onclick=()=>{timeMode=(timeMode+1)%3;
   const configs=[['#9caeb5','#a7ada7','#ffe4b5',3.5,1.35],['#b8c7d2','#c8c8bc','#fff6e2',4.1,1.55],['#1a2b44','#293345','#a9b9ea',.45,.88]];
-  const [bg,fog,sunColor,power,exposure]=configs[timeMode];scene.background.set(bg);scene.fog.color.set(fog);sun.color.set(sunColor);sun.intensity=power;renderer.toneMappingExposure=exposure;
+  const [bg,fog,sunColor,power,exposure]=configs[timeMode];scene.fog.color.set(fog);sun.color.set(sunColor);sun.intensity=power;renderer.toneMappingExposure=exposure;
+  sky.material.uniforms.sunPosition.value.set(...[[-.58,.47,-.65],[-.5,.88,-.2],[-.57,-.08,-.6]][timeMode]).normalize();
+  sky.material.uniforms.rayleigh.value=timeMode===2?.15:2.2;
+  ambient.intensity=timeMode===2?.45:1.45;
   $('time').textContent=['☀ ATARDECER','☀ MEDIODÍA','☾ NOCHE'][timeMode];
 };
 $('traffic').onclick=()=>{trafficEnabled=!trafficEnabled;$('traffic').textContent='♢ TRÁFICO: '+(trafficEnabled?'ON':'OFF');};
-$('quality').onclick=()=>{qualityHigh=!qualityHigh;renderer.setPixelRatio(Math.min(devicePixelRatio,qualityHigh?1.7:1));renderer.shadowMap.enabled=qualityHigh;renderer.shadowMap.needsUpdate=true;resize();$('quality').textContent='CALIDAD: '+(qualityHigh?'ALTA':'MEDIA');notice('Calidad '+(qualityHigh?'alta':'media'));};
+$('quality').onclick=()=>{qualityHigh=!qualityHigh;renderer.setPixelRatio(Math.min(devicePixelRatio,qualityHigh?(mobileGpu?1.15:1.65):1));renderer.shadowMap.enabled=qualityHigh;renderer.shadowMap.needsUpdate=true;resize();$('quality').textContent='CALIDAD: '+(qualityHigh?'ALTA':'MEDIA');notice('Calidad '+(qualityHigh?'alta':'media'));};
 $('sound').onclick=()=>{soundEnabled=!soundEnabled;$('sound').textContent='♫ '+(soundEnabled?'ON':'OFF');notice('Audio ambiental '+(soundEnabled?'activado (próximamente)':'desactivado'));};
 
 const map=$('map'),mc=map.getContext('2d');
@@ -435,7 +471,13 @@ function refreshMission(){
 let previous=performance.now(),mapTimer=0;
 function animate(now){
   const dt=Math.min((now-previous)/1000,.05);previous=now;
-  move(dt);
+  const pad=readGamepad(navigator.getGamepads?.());
+  const input=movement(keys,pad,touch);
+  move(dt,input);
+  yaw-=pad.lookX*dt*2.5;
+  pitch=THREE.MathUtils.clamp(pitch+pad.lookY*dt*1.5,.08,1.22);
+  for(const [name,pressed] of Object.entries(pad.actions))if(pressed&&!previousActions[name])action(name);
+  previousActions=pad.actions;
   const jobEvent=tickGame(campaign,dt);
   if(jobEvent){notice(`Tiempo agotado: ${jobEvent.job.title}`);refreshMission();}
   if(trafficEnabled){for(const car of vehicles){if(!car.userData.speed)continue;const forward=new THREE.Vector3(Math.sin(car.rotation.y),0,Math.cos(car.rotation.y));car.position.addScaledVector(forward,car.userData.speed*dt);if(Math.abs(car.position.x)>395)car.position.x*=-.98;if(Math.abs(car.position.z)>395)car.position.z*=-.98;}}
@@ -445,7 +487,68 @@ function animate(now){
   mapTimer+=dt;if(mapTimer>.2){updateMap();refreshMission();mapTimer=0;}
   renderer.render(scene,camera);requestAnimationFrame(animate);
 }
-resize();requestAnimationFrame(animate);
-setTimeout(()=>$('loading').classList.add('hidden'),550);
+const loadElement = $('loading');
+let gameStarted = false;
+function startGame() {
+  if(gameStarted)return;
+  gameStarted = true;
+  $('loadContinue').hidden = true;
+  resize();
+  previous = performance.now();
+  renderer.render(scene,camera);
+  loadElement.classList.add('hidden');
+  requestAnimationFrame(animate);
+}
+function loadingError(message) {
+  $('loadMessage').textContent = 'Algunos recursos no pudieron cargarse';
+  $('loadError').textContent = message;
+  $('loadError').hidden = false;
+  $('loadRetry').hidden = false;
+  $('loadContinue').hidden = false;
+}
+$('loadContinue').onclick = () => { notice('Modo de compatibilidad: recursos no disponibles'); startGame(); };
+async function bootVisuals() {
+  const urls = new Map();
+  try {
+    const result = await fetchVisualAssets('./assets/manifest.json', {
+      onProgress: progress => {
+        const percent = Math.min(100, Math.round(progress.loaded / progress.total * 100));
+        $('loadFill').style.width = `${percent}%`;
+        $('loadPercent').textContent = `${percent}%`;
+        loadElement.querySelector('[role=progressbar]').setAttribute('aria-valuenow', String(percent));
+        $('loadMessage').textContent = progress.completed === progress.count ? 'Preparando recursos gráficos…' : `Descargando: ${progress.name}`;
+        $('loadBytes').textContent = `${(progress.loaded / 1048576).toFixed(1)} / ${(progress.total / 1048576).toFixed(1)} MiB · ${progress.completed}/${progress.count} archivos`;
+      },
+    });
+    for (const [name, data] of result.files) {
+      const type = name.endsWith('.jpg') ? 'image/jpeg' : name.endsWith('.hdr') ? 'application/octet-stream' : 'model/gltf-binary';
+      urls.set(name, URL.createObjectURL(new Blob([data], { type })));
+    }
+    $('loadMessage').textContent = 'Decodificando materiales y vehículo 3D…';
+    const tasks = [
+      loadSurface(roadMat, 'asphalt-color.jpg', 'asphalt-normal.jpg', 55, urls),
+      loadSurface(pavement, 'pavement-color.jpg', 'pavement-normal.jpg', 9, urls),
+      loadSurface(concrete, 'concrete-color.jpg', 'concrete-normal.jpg', 4, urls),
+    ];
+    if (urls.has('sunset.hdr')) tasks.push(new RGBELoader().loadAsync(urls.get('sunset.hdr')).then(hdr => {
+      hdr.mapping = THREE.EquirectangularReflectionMapping;
+      scene.environment = hdr;
+      scene.environmentIntensity = .78;
+    }));
+    if (result.files.has('concept-car.glb')) {
+      const data = result.files.get('concept-car.glb');
+      const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      tasks.push(new GLTFLoader().parseAsync(buffer, '').then(installDetailedCar));
+    }
+    const settled = await Promise.allSettled(tasks);
+    const failures = [...result.errors, ...settled.filter(s => s.status === 'rejected').map(s => s.reason?.message || String(s.reason))];
+    if (failures.length) loadingError(failures.join(' · '));
+    else startGame();
+  } catch (error) {
+    loadingError('No se pudieron descargar los recursos: ' + error.message);
+  } finally {
+    for (const url of urls.values()) URL.revokeObjectURL(url);
+  }
+}
+bootVisuals();
 setTimeout(()=>document.querySelector('.location').style.opacity='.16',6500);
-window.addEventListener('error',e=>{const loading=$('loading');if(loading&&!loading.classList.contains('hidden'))loading.querySelector('p').textContent='Error gráfico: '+e.message;});
