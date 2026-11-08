@@ -6,8 +6,11 @@ export function stepMotor(state, input, cameraYaw, delta, isBlocked = () => fals
   const dt = Math.max(0, Math.min(delta, .05));
   const f = input.forward || 0, s = input.sideways || 0;
   const magnitude = Math.min(1, Math.hypot(f,s));
-  const dx = (Math.sin(cameraYaw)*f + Math.cos(cameraYaw)*s);
-  const dz = (Math.cos(cameraYaw)*f - Math.sin(cameraYaw)*s);
+  // Camera position is player + (sin(yaw), 0, cos(yaw)). Its forward
+  // direction is the *negative* of that offset. The previous signs moved
+  // W toward the camera and mirrored A/D, independently of input device.
+  const dx = -(Math.sin(cameraYaw)*f + Math.cos(cameraYaw)*s);
+  const dz = -(Math.cos(cameraYaw)*f - Math.sin(cameraYaw)*s);
   const length = Math.max(1, Math.hypot(dx,dz));
   const maxSpeed = input.run ? 8.5 : 4.4;
   const targetX = dx/length*maxSpeed, targetZ = dz/length*maxSpeed;

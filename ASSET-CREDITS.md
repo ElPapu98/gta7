@@ -12,6 +12,10 @@ The original game code and procedural district remain separate from the followin
 | `cesium-man.glb` | [Khronos glTF Sample Assets: CesiumMan](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan) | CC BY 4.0 | © 2017 Cesium, model, texture and skeletal animation. Cesium marks carry separate trademark terms. |
 | `urban-facade.glb` | [Poly Haven: Modular Urban Apartments Facade](https://polyhaven.com/a/modular_urban_apartments_facade) | CC0 1.0 | Poly Haven artists |
 | `street-lamp.glb` | [Poly Haven: Street Lamp 01](https://polyhaven.com/a/street_lamp_01) | CC0 1.0 | Poly Haven artists |
+| `trash-can.glb` | [Poly Haven: Metal Trash Can](https://polyhaven.com/a/metal_trash_can) | CC0 1.0 | GurJas Studios |
+| `fire-hydrant.glb` | [Poly Haven: Fire Hydrant](https://polyhaven.com/a/fire_hydrant) | CC0 1.0 | Poly Haven / Gonçalo Felício |
+| `street-seating.glb` | [Poly Haven: Modular Street Seating](https://polyhaven.com/a/modular_street_seating) | CC0 1.0 | Poly Haven / Stuart Attenborrow |
+| `shrub.glb` | [Poly Haven: Shrub 02](https://polyhaven.com/a/shrub_02) | CC0 1.0 | Poly Haven artists |
 
 The source materials have not been artistically altered; Poly Haven's `.gltf` plus referenced texture files are repacked as `.glb` for static distribution, and models are resized or scaled at render time. Attribution is required for the car and CesiumMan and is retained here. This project does not claim affiliation with Khronos, Darmstadt Graphics Group, Cesium or Poly Haven.
 

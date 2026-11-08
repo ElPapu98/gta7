@@ -19,6 +19,10 @@ export const assets = [
 const polyModels = [
   { id: 'modular_urban_apartments_facade', name: 'urban-facade.glb' },
   { id: 'street_lamp_01', name: 'street-lamp.glb' },
+  { id: 'metal_trash_can', name: 'trash-can.glb' },
+  { id: 'fire_hydrant', name: 'fire-hydrant.glb' },
+  { id: 'modular_street_seating', name: 'street-seating.glb' },
+  { id: 'shrub_02', name: 'shrub.glb' },
 ];
 
 async function downloadPolyModel(model, directory, fetcher) {

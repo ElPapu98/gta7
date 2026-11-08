@@ -1,10 +1,12 @@
 // Measures actual network bytes, not a timer or an estimated animation.
-export async function fetchVisualAssets(manifestUrl, { onProgress = () => {}, fetcher = fetch, concurrency = 3 } = {}) {
+export async function fetchVisualAssets(manifestUrl, { onProgress = () => {}, fetcher = fetch, concurrency = 3, select = () => true } = {}) {
   const manifestHref = new URL(manifestUrl, globalThis.location?.href || 'http://localhost/');
   const response = await fetcher(manifestHref, { cache: 'no-cache', signal: AbortSignal.timeout(30000) });
   if (!response.ok) throw Error(`Manifiesto gráfico: HTTP ${response.status}`);
-  const manifest = await response.json();
-  if (!Array.isArray(manifest) || !manifest.length) throw Error('Manifiesto gráfico vacío');
+  const all = await response.json();
+  if (!Array.isArray(all) || !all.length) throw Error('Manifiesto gráfico vacío');
+  const manifest = all.filter(select);
+  if (!manifest.length) throw Error('No hay recursos para esta fase');
   const total = manifest.reduce((sum, asset) => sum + asset.bytes, 0);
   if (!total || manifest.some(a => !/^[a-z0-9-]+\.(jpg|hdr|glb)$/.test(a.name) || !Number.isSafeInteger(a.bytes) || a.bytes <= 0)) {
     throw Error('Manifiesto gráfico inválido');

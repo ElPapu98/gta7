@@ -26,3 +26,12 @@ test('failed file stays visible as an error', async () => {
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0], /404/);
 });
+test('selecting a streaming phase excludes other files from its byte budget', async () => {
+  const fetcher=async url=>String(url).endsWith('manifest.json')
+    ? {ok:true,json:async()=>[{name:'core.jpg',bytes:2},{name:'detail.glb',bytes:8}]}
+    : {ok:true,body:new ReadableStream({start(c){c.enqueue(new Uint8Array([1,2]));c.close();}})};
+  const result=await fetchVisualAssets('https://example.org/assets/manifest.json',{fetcher,select:a=>a.name==='core.jpg'});
+  assert.equal(result.total,2);
+  assert.equal(result.files.size,1);
+  assert.equal(result.errors.length,0);
+});

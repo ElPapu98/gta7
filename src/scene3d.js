@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { fetchVisualAssets } from './asset-stream.js';
 import { movement, readGamepad } from './controls.js';
-import { createMotor, stepMotor, cameraClearance } from './character-motor.js';
+import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js';
 import { createWorld, step, incident } from './simulation.js';
 import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js';
 
@@ -319,6 +320,7 @@ function person(color='#d9b4a1'){
 const player=person('#e5e1d6');player.position.set(0,0,0);scene.add(player);
 const motor=createMotor(0,0);
 let characterMixer=null,walkAction=null;
+const detailedCitizens=new Map();
 function installCharacter(loaded) {
   const model=loaded.scene;
   const bounds=new THREE.Box3().setFromObject(model);
@@ -337,6 +339,19 @@ function installCharacter(loaded) {
     walkAction=characterMixer.clipAction(loaded.animations[0]);
     walkAction.play();
     walkAction.paused=true;
+  }
+  // Reuse one skinned glTF across the nearest 18 simulated citizens. Each
+  // skeleton must be cloned independently; ordinary Object3D.clone breaks
+  // skin bone bindings for animated characters.
+  const nearest=world.agents.map((agent,i)=>({i,d:Math.hypot(agent.x-630,agent.y-630)})).sort((a,b)=>a.d-b.d).slice(0,18);
+  for(const {i} of nearest){
+    const root=new THREE.Group(),body=SkeletonUtils.clone(model);
+    root.add(body);scene.add(root);
+    const mixer=loaded.animations.length?new THREE.AnimationMixer(body):null;
+    const clip=mixer?.clipAction(loaded.animations[0]);
+    if(clip){clip.play();clip.time=(i*.31)%clip.getClip().duration;}
+    detailedCitizens.set(i,{root,mixer,lastX:0,lastZ:0});
+    pedestrians[i].visible=false;
   }
 }
 function installUrbanDetail(loaded) {
@@ -366,7 +381,22 @@ function installStreetLamps(loaded) {
     const root=new THREE.Group();root.position.set(x,.3,z);root.add(source.clone(true));scene.add(root);highDetailProps.push(root);
   }
 }
+function installStreetProps(loaded, locations, targetHeight) {
+  const source=loaded.scene;
+  const bounds=new THREE.Box3().setFromObject(source),dimensions=bounds.getSize(new THREE.Vector3());
+  if(!Number.isFinite(dimensions.y)||dimensions.y<.01)throw Error('Prop sin geometría válida');
+  source.scale.setScalar(targetHeight/dimensions.y);
+  source.updateMatrixWorld(true);
+  const fitted=new THREE.Box3().setFromObject(source),center=fitted.getCenter(new THREE.Vector3());
+  source.position.set(-center.x,-fitted.min.y,-center.z);
+  source.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;}});
+  for(const [x,z,rotation=0] of locations){
+    const root=new THREE.Group();root.position.set(x,.4,z);root.rotation.y=rotation;
+    root.add(source.clone(true));scene.add(root);highDetailProps.push(root);
+  }
+}
 const world=createWorld(53,60);
+for(const agent of world.agents)agent.speed*=.3;
 for(let i=0;i<world.agents.length;i++){
   const model=person(choose(['#c8a68d','#cf6651','#8f9d9b','#b7b39f','#556e85','#8e9c76']));
   model.scale.setScalar(rand(.82,1.05));scene.add(model);pedestrians.push(model);
@@ -395,6 +425,7 @@ function move(dt, input){
     const dir=new THREE.Vector3(Math.sin(obj.rotation.y),0,Math.cos(obj.rotation.y));
     const target=obj.position.clone().addScaledVector(dir,velocity*dt);
     if(!blocked(target.x,target.z))obj.position.copy(target);else velocity=0;
+    yaw+=shortestTurn(yaw,obj.rotation.y-Math.PI)*(1-Math.exp(-2.4*dt));
     player.visible=false;
     $('speedValue').textContent=Math.round(Math.abs(velocity)*3.6);
   }else{
@@ -422,7 +453,7 @@ window.addEventListener('resize',resize);resize();
 function action(type){
   if(type==='vehicle'){
     if(driving){driving=false;player.visible=true;player.position.copy(heroCar.position).add(new THREE.Vector3(2.6,0,0));motor.x=player.position.x;motor.z=player.position.z;motor.vx=motor.vz=0;velocity=0;notice('Has bajado del vehículo');}
-    else if(player.position.distanceTo(heroCar.position)<8){driving=true;notice('Vehículo: WASD conducir · E salir');}
+    else if(player.position.distanceTo(heroCar.position)<8){driving=true;heroCar.rotation.y=yaw+Math.PI;velocity=0;notice('Vehículo: WASD conducir · E salir');}
     else notice('Acércate al vehículo dorado para conducirlo');
   }
   if(type==='interact'){
@@ -515,7 +546,7 @@ function refreshMission(){
   const roadPosition=new THREE.Vector3(position.x,1.2,position.z),goalPosition=new THREE.Vector3(target.x,1.2,target.z);
   routeLine.geometry.dispose();routeLine.geometry=new THREE.BufferGeometry().setFromPoints([roadPosition,goalPosition]);routeLine.computeLineDistances();
 }
-let previous=performance.now(),mapTimer=0;
+let previous=performance.now(),mapTimer=0,simAccumulator=0;
 function animate(now){
   const dt=Math.min((now-previous)/1000,.05);previous=now;
   const pad=readGamepad(navigator.getGamepads?.());
@@ -530,8 +561,21 @@ function animate(now){
   const jobEvent=tickGame(campaign,dt);
   if(jobEvent){notice(`Tiempo agotado: ${jobEvent.job.title}`);refreshMission();}
   if(trafficEnabled){for(const car of vehicles){if(!car.userData.speed)continue;const forward=new THREE.Vector3(Math.sin(car.rotation.y),0,Math.cos(car.rotation.y));car.position.addScaledVector(forward,car.userData.speed*dt);if(Math.abs(car.position.x)>395)car.position.x*=-.98;if(Math.abs(car.position.z)>395)car.position.z*=-.98;}}
-  step(world,1/30);
-  for(let i=0;i<pedestrians.length;i++){const a=world.agents[i],m=pedestrians[i];m.position.set((a.x-630)*.60,0,(a.y-630)*.60);}
+  simAccumulator+=dt;
+  while(simAccumulator>=1/30){step(world,1/30);simAccumulator-=1/30;}
+  for(let i=0;i<pedestrians.length;i++){
+    const a=world.agents[i],x=(a.x-630)*.60,z=(a.y-630)*.60;
+    const detail=detailedCitizens.get(i);
+    if(detail){
+      const {root,mixer}=detail;
+      root.position.set(x,0,z);
+      const dx=x-detail.lastX,dz=z-detail.lastZ;
+      if(Math.hypot(dx,dz)>.002)root.rotation.y=Math.atan2(dx,dz);
+      root.visible=root.position.distanceToSquared(active().position)<110*110;
+      if(root.visible)mixer?.update(dt);
+      detail.lastX=x;detail.lastZ=z;
+    }else pedestrians[i].position.set(x,0,z);
+  }
   diamond.rotation.y+=dt*1.2;diamond.position.y=7+Math.sin(now*.002)*.7;ring.rotation.z+=dt*.6;
   mapTimer+=dt;if(mapTimer>.2){updateMap();refreshMission();mapTimer=0;}
   renderer.render(scene,camera);requestAnimationFrame(animate);
@@ -547,6 +591,7 @@ function startGame() {
   renderer.render(scene,camera);
   loadElement.classList.add('hidden');
   requestAnimationFrame(animate);
+  streamUrbanDetail();
 }
 function loadingError(message) {
   $('loadMessage').textContent = 'Algunos recursos no pudieron cargarse';
@@ -556,10 +601,46 @@ function loadingError(message) {
   $('loadContinue').hidden = false;
 }
 $('loadContinue').onclick = () => { notice('Modo de compatibilidad: recursos no disponibles'); startGame(); };
+const urbanInstallers=[
+  ['urban-facade.glb',installUrbanDetail],
+  ['street-lamp.glb',installStreetLamps],
+  ['trash-can.glb',loaded=>installStreetProps(loaded,[[19,20],[20,-19],[-19,20],[-20,-20]],1.25)],
+  ['fire-hydrant.glb',loaded=>installStreetProps(loaded,[[-17,-17],[17,17],[-17,17]],1.05)],
+  ['street-seating.glb',loaded=>installStreetProps(loaded,[[24,22,Math.PI/2],[-24,-22,-Math.PI/2]],1.4)],
+  ['shrub.glb',loaded=>installStreetProps(loaded,[[24,27],[28,28],[-23,27],[-28,28],[24,-26],[-24,-26],[-28,-29],[27,-30]],1.8)],
+];
+let detailStarted=false;
+async function streamUrbanDetail(){
+  if(detailStarted)return;
+  detailStarted=true;
+  const selected=new Set(urbanInstallers.filter(([name])=>!mobileGpu||['street-lamp.glb','shrub.glb'].includes(name)).map(([name])=>name));
+  const status=$('streamStatus');
+  try{
+    const result=await fetchVisualAssets('./assets/manifest.json',{
+      select:asset=>selected.has(asset.name),concurrency:2,
+      onProgress:p=>{status.textContent=`DETALLE ${(p.loaded/1048576).toFixed(0)}/${(p.total/1048576).toFixed(0)} MiB`;},
+    });
+    const errors=[...result.errors];
+    for(const [name,installer] of urbanInstallers){
+      const data=result.files.get(name);
+      if(!data)continue;
+      try{
+        const buffer=data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength);
+        installer(await new GLTFLoader().parseAsync(buffer,''));
+      }catch(error){errors.push(`${name}: ${error.message}`);}
+    }
+    status.textContent=errors.length?`DETALLE PARCIAL (${errors.length} errores)`:'DETALLE 3D COMPLETO';
+    if(errors.length){console.warn('Urban assets:',errors);notice('Algunos detalles urbanos no pudieron cargarse');}
+  }catch(error){
+    status.textContent='DETALLE NO DISPONIBLE';
+    console.warn('Urban streaming:',error);
+  }
+}
 async function bootVisuals() {
   const urls = new Map();
   try {
     const result = await fetchVisualAssets('./assets/manifest.json', {
+      select:asset=>!urbanInstallers.some(([name])=>name===asset.name),
       onProgress: progress => {
         const percent = Math.min(100, Math.round(progress.loaded / progress.total * 100));
         $('loadFill').style.width = `${percent}%`;
@@ -589,7 +670,7 @@ async function bootVisuals() {
       const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
       tasks.push(new GLTFLoader().parseAsync(buffer, '').then(installDetailedCar));
     }
-    for(const [name,installer] of [['cesium-man.glb',installCharacter],['urban-facade.glb',installUrbanDetail],['street-lamp.glb',installStreetLamps]]){
+    for(const [name,installer] of [['cesium-man.glb',installCharacter]]){
       if(!result.files.has(name))continue;
       const data=result.files.get(name),buffer=data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength);
       tasks.push(new GLTFLoader().parseAsync(buffer,'').then(installer));
