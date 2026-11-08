@@ -1,5 +1,14 @@
 # GTA7.WASM — Living City Lab
 
+**Mobile input 0.10:** botón CORRER de pulsación alternada con indicador
+CORRIENDO, liberación segura de entradas al perder el foco y seguimiento por
+`pointerId` para joystick, cámara y arrastre de escritorio; un dedo ya no
+cancela la interacción de otro. Se añade un coche estacionado fotorrealista
+CC0 de Poly Haven como detalle urbano, cargado progresivamente en escritorio.
+Las decisiones para personajes de mayor fidelidad, coches dirigibles y
+presupuestos de render se documentan en
+[`docs/PRODUCTION-QUALITY.md`](docs/PRODUCTION-QUALITY.md).
+
 **Control fix 0.9:** El movimiento a pie usa una base ortonormal derivada de la
 cámara: W avanza hacia la escena, S retrocede, A va a la izquierda y D a la
 derecha visual, incluso después de rotar la cámara. Antes A/D estaban

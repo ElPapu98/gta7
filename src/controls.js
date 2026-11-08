@@ -9,6 +9,13 @@ export function radialDeadzone(x, y, threshold = .14) {
   return {x:x*scale,y:y*scale};
 }
 
+// Mobile sprint is a tap-toggle so the left thumb can stay on the joystick.
+// Desktop Shift and gamepad shoulder buttons remain hold-to-sprint.
+export function toggleTouchSprint(touch, enabled = !touch.run) {
+  touch.run = Boolean(enabled);
+  return touch.run;
+}
+
 export function readGamepad(pads) {
   const pad = Array.from(pads || []).find(p => p && p.connected && p.mapping === 'standard');
   if (!pad) return { connected: false, forward: 0, sideways: 0, lookX: 0, lookY: 0, run: false, actions: {} };

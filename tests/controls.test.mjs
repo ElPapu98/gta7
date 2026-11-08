@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { deadzone, radialDeadzone, movement, readGamepad } from '../src/controls.js';
+import { deadzone, radialDeadzone, movement, readGamepad, toggleTouchSprint } from '../src/controls.js';
 import { cameraRelativeDirection } from '../src/character-motor.js';
 
 test('deadzone suppresses controller stick drift', () => {
@@ -44,4 +44,12 @@ test('keyboard, touch and gamepad all move right in camera-space', () => {
     const actual=cameraRelativeDirection(input.forward,input.sideways,yaw);
     assert.ok(actual.x*right.x+actual.z*right.z>.99);
   }
+});
+test('mobile sprint toggles, stays active while moving and resets on blur', () => {
+  const touch={x:.7,y:.7,run:false};
+  assert.equal(toggleTouchSprint(touch),true);
+  assert.equal(movement(new Set(),readGamepad([]),touch).run,true);
+  assert.equal(toggleTouchSprint(touch),false);
+  assert.equal(toggleTouchSprint(touch,true),true);
+  assert.equal(toggleTouchSprint(touch,false),false);
 });

@@ -19,6 +19,7 @@ The original game code and procedural district remain separate from the followin
 | `fire-hydrant.glb` | [Poly Haven: Fire Hydrant](https://polyhaven.com/a/fire_hydrant) | CC0 1.0 | Poly Haven / Gonçalo Felício |
 | `street-seating.glb` | [Poly Haven: Modular Street Seating](https://polyhaven.com/a/modular_street_seating) | CC0 1.0 | Poly Haven / Stuart Attenborrow |
 | `shrub.glb` | [Poly Haven: Shrub 02](https://polyhaven.com/a/shrub_02) | CC0 1.0 | Poly Haven artists |
+| `covered-car.glb` | [Poly Haven: Covered Car](https://polyhaven.com/a/covered_car) | CC0 1.0 | MP |
 
 The source materials have not been artistically altered; Poly Haven's `.gltf` plus referenced texture files are repacked as `.glb` for static distribution, and models are resized or scaled at render time. Attribution is required for the car and CesiumMan and is retained here. This project does not claim affiliation with Khronos, Darmstadt Graphics Group, Cesium or Poly Haven.
 

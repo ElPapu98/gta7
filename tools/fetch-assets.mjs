@@ -29,6 +29,7 @@ const polyModels = [
   { id: 'fire_hydrant', name: 'fire-hydrant.glb' },
   { id: 'modular_street_seating', name: 'street-seating.glb' },
   { id: 'shrub_02', name: 'shrub.glb' },
+  { id: 'covered_car', name: 'covered-car.glb' },
 ];
 
 async function downloadPolyModel(model, directory, fetcher) {

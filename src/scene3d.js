@@ -3,11 +3,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { fetchVisualAssets } from './asset-stream.js?v=0.9.0';
-import { movement, readGamepad } from './controls.js?v=0.9.0';
-import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.9.0';
-import { createWorld, step, incident } from './simulation.js?v=0.9.0';
-import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.9.0';
+import { fetchVisualAssets } from './asset-stream.js?v=0.10.0';
+import { movement, readGamepad, toggleTouchSprint } from './controls.js?v=0.10.0';
+import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.10.0';
+import { createWorld, step, incident } from './simulation.js?v=0.10.0';
+import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.10.0';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -612,15 +612,23 @@ document.addEventListener('keydown',e=>{
   keys.add(key);
 });
 document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
-window.addEventListener('blur',()=>keys.clear());
-canvas.addEventListener('pointerdown',e=>{pointerDown=true;lastPointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
-canvas.addEventListener('pointerup',()=>pointerDown=false);
-canvas.addEventListener('pointermove',e=>{if(!pointerDown)return;yaw+=(lastPointer.x-e.clientX)*.005;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastPointer.y)*.003,.08,1.22);lastPointer={x:e.clientX,y:e.clientY};});
+window.addEventListener('blur',()=>{keys.clear();touch.x=touch.y=0;toggleTouchSprint(touch,false);syncSprintButton();});
+let canvasPointer=null;
+canvas.addEventListener('pointerdown',e=>{
+  if(canvasPointer!==null)return;
+  canvasPointer=e.pointerId;pointerDown=true;
+  lastPointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);
+});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,e=>{
+  if(e.pointerId===canvasPointer){pointerDown=false;canvasPointer=null;}
+});
+canvas.addEventListener('pointermove',e=>{if(!pointerDown||e.pointerId!==canvasPointer)return;yaw+=(lastPointer.x-e.clientX)*.005;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastPointer.y)*.003,.08,1.22);lastPointer={x:e.clientX,y:e.clientY};});
 canvas.addEventListener('wheel',e=>{e.preventDefault();distance=THREE.MathUtils.clamp(distance+e.deltaY*.018,5,30);},{passive:false});
 
 // Touch: one bounded analog stick, a separate camera drag zone and distinct
 // action buttons. Pointer capture keeps gestures stable across screen edges.
 const joystick=$('joystick'),stick=$('stick');
+let joystickPointer=null;
 function updateJoystick(event) {
   const r=joystick.getBoundingClientRect();
   const x=event.clientX-(r.left+r.width/2),y=event.clientY-(r.top+r.height/2);
@@ -628,17 +636,35 @@ function updateJoystick(event) {
   touch.x=x/scale/radius;touch.y=-y/scale/radius;
   stick.style.transform=`translate(${x/scale}px,${y/scale}px)`;
 }
-joystick.addEventListener('pointerdown',e=>{e.preventDefault();joystick.setPointerCapture(e.pointerId);updateJoystick(e);});
-joystick.addEventListener('pointermove',e=>{if(joystick.hasPointerCapture(e.pointerId))updateJoystick(e);});
-for(const type of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(type,()=>{touch.x=0;touch.y=0;stick.style.transform='';});
+joystick.addEventListener('pointerdown',e=>{
+  if(joystickPointer!==null)return;
+  e.preventDefault();joystickPointer=e.pointerId;
+  joystick.setPointerCapture(e.pointerId);updateJoystick(e);
+});
+joystick.addEventListener('pointermove',e=>{if(e.pointerId===joystickPointer&&joystick.hasPointerCapture(e.pointerId))updateJoystick(e);});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(type,e=>{
+  if(e.pointerId!==joystickPointer)return;
+  joystickPointer=null;touch.x=0;touch.y=0;stick.style.transform='';
+});
 const touchLook=$('touchLook');let lookPointer=null;
-touchLook.addEventListener('pointerdown',e=>{e.preventDefault();touchLook.setPointerCapture(e.pointerId);lookPointer={x:e.clientX,y:e.clientY};});
-touchLook.addEventListener('pointermove',e=>{if(!lookPointer||!touchLook.hasPointerCapture(e.pointerId))return;yaw+=(lookPointer.x-e.clientX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lookPointer.y)*.004,.08,1.22);lookPointer={x:e.clientX,y:e.clientY};});
-for(const type of ['pointerup','pointercancel','lostpointercapture'])touchLook.addEventListener(type,()=>lookPointer=null);
+touchLook.addEventListener('pointerdown',e=>{
+  if(lookPointer)return;
+  e.preventDefault();touchLook.setPointerCapture(e.pointerId);
+  lookPointer={id:e.pointerId,x:e.clientX,y:e.clientY};
+});
+touchLook.addEventListener('pointermove',e=>{if(!lookPointer||e.pointerId!==lookPointer.id||!touchLook.hasPointerCapture(e.pointerId))return;yaw+=(lookPointer.x-e.clientX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lookPointer.y)*.004,.08,1.22);lookPointer={id:e.pointerId,x:e.clientX,y:e.clientY};});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])touchLook.addEventListener(type,e=>{if(e.pointerId===lookPointer?.id)lookPointer=null;});
 $('touchVehicle').addEventListener('pointerdown',e=>{e.preventDefault();action('vehicle');});
 $('touchInteract').addEventListener('pointerdown',e=>{e.preventDefault();action('interact');});
-for(const type of ['pointerup','pointercancel','lostpointercapture'])$('touchRun').addEventListener(type,()=>touch.run=false);
-$('touchRun').addEventListener('pointerdown',e=>{e.preventDefault();touch.run=true;});
+const runButton=$('touchRun');
+function syncSprintButton(){
+  runButton.setAttribute('aria-pressed',String(touch.run));
+  runButton.textContent=touch.run?'CORRIENDO':'CORRER';
+}
+runButton.addEventListener('pointerdown',e=>{
+  e.preventDefault();toggleTouchSprint(touch);syncSprintButton();
+});
+syncSprintButton();
 $('view').onclick=()=>{cameraMode=(cameraMode+1)%3;notice(['Cámara tercera persona','Cámara cercana','Cámara aérea'][cameraMode]);};
 $('time').onclick=()=>{timeMode=(timeMode+1)%3;
   const configs=[['#9caeb5','#a7ada7','#ffe4b5',3.5,1.35],['#b8c7d2','#c8c8bc','#fff6e2',4.1,1.55],['#1a2b44','#293345','#a9b9ea',.45,.88]];
@@ -748,6 +774,7 @@ const urbanInstallers=[
   ['fire-hydrant.glb',loaded=>installStreetProps(loaded,[[-17,-17],[17,17],[-17,17]],1.05)],
   ['street-seating.glb',loaded=>installStreetProps(loaded,[[24,22,Math.PI/2],[-24,-22,-Math.PI/2]],1.4)],
   ['shrub.glb',loaded=>installStreetProps(loaded,[[24,27],[28,28],[-23,27],[-28,28],[24,-26],[-24,-26],[-28,-29],[27,-30]],1.8)],
+  ['covered-car.glb',loaded=>installStreetProps(loaded,[[18,-33,Math.PI/2],[-18,33,-Math.PI/2]],2.05)],
 ];
 let detailStarted=false;
 async function streamUrbanDetail(){
