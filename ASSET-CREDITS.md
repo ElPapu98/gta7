@@ -9,7 +9,10 @@ The original game code and procedural district remain separate from the followin
 | `concrete-color.jpg`, `concrete-normal.jpg` | [Poly Haven: Concrete](https://polyhaven.com/a/concrete) | CC0 1.0 | Poly Haven; see current asset page for authors |
 | `sunset.hdr` | [Poly Haven: Industrial Sunset (Pure Sky)](https://polyhaven.com/a/industrial_sunset_puresky) | CC0 1.0 | Poly Haven; see current asset page for authors |
 | `concept-car.glb` | [Khronos glTF Sample Assets: CarConcept](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) | CC BY 4.0 | © 2024 Darmstadt Graphics Group GmbH; Eric Chadwick — model and textures. Logos carry independent Khronos trademark terms. |
+| `cesium-man.glb` | [Khronos glTF Sample Assets: CesiumMan](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan) | CC BY 4.0 | © 2017 Cesium, model, texture and skeletal animation. Cesium marks carry separate trademark terms. |
+| `urban-facade.glb` | [Poly Haven: Modular Urban Apartments Facade](https://polyhaven.com/a/modular_urban_apartments_facade) | CC0 1.0 | Poly Haven artists |
+| `street-lamp.glb` | [Poly Haven: Street Lamp 01](https://polyhaven.com/a/street_lamp_01) | CC0 1.0 | Poly Haven artists |
 
-The source materials have not been altered; they are resized/repeated or scaled at render time. Attribution is required for the car and is retained here and in the game's HUD. This project does not claim affiliation with Khronos, Darmstadt Graphics Group or Poly Haven.
+The source materials have not been artistically altered; Poly Haven's `.gltf` plus referenced texture files are repacked as `.glb` for static distribution, and models are resized or scaled at render time. Attribution is required for the car and CesiumMan and is retained here. This project does not claim affiliation with Khronos, Darmstadt Graphics Group, Cesium or Poly Haven.
 
 Note: Poly Haven API service terms differ from CC0 asset licensing. Our build fetches explicitly pinned resource URLs and does not ship its API client. Production builds should mirror/cache assets under suitable distribution policies, monitor source availability and verify SHA-256 values in `assets/manifest.json`.

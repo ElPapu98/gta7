@@ -4,6 +4,7 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { fetchVisualAssets } from './asset-stream.js';
 import { movement, readGamepad } from './controls.js';
+import { createMotor, stepMotor, cameraClearance } from './character-motor.js';
 import { createWorld, step, incident } from './simulation.js';
 import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js';
 
@@ -53,6 +54,7 @@ const asphalt = std('#373b3b', 1), pavement = std('#9d9e91'), concrete = std('#a
 const greenery = [std('#426b48'), std('#346547'), std('#638354')];
 const geometry = { box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 8), sphere: new THREE.SphereGeometry(1, 9, 7) };
 const buildings = [], vehicles = [], pedestrians = [];
+const highDetailProps=[];
 let campaign;
 try { campaign = newGame(JSON.parse(localStorage.getItem('gta7-progress-v1') || '{}')); } catch { campaign = newGame(); }
 
@@ -315,6 +317,55 @@ function person(color='#d9b4a1'){
   return g;
 }
 const player=person('#e5e1d6');player.position.set(0,0,0);scene.add(player);
+const motor=createMotor(0,0);
+let characterMixer=null,walkAction=null;
+function installCharacter(loaded) {
+  const model=loaded.scene;
+  const bounds=new THREE.Box3().setFromObject(model);
+  const size=bounds.getSize(new THREE.Vector3());
+  if(!Number.isFinite(size.y)||size.y<.01)throw Error('Modelo humano sin geometría válida');
+  model.scale.setScalar(2.12/size.y);
+  model.updateMatrixWorld(true);
+  const fitted=new THREE.Box3().setFromObject(model);
+  const center=fitted.getCenter(new THREE.Vector3());
+  model.position.set(-center.x,-fitted.min.y,-center.z);
+  model.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;}});
+  while(player.children.length)player.remove(player.children[0]);
+  player.add(model);
+  if(loaded.animations.length){
+    characterMixer=new THREE.AnimationMixer(model);
+    walkAction=characterMixer.clipAction(loaded.animations[0]);
+    walkAction.play();
+    walkAction.paused=true;
+  }
+}
+function installUrbanDetail(loaded) {
+  const source=loaded.scene;
+  const bounds=new THREE.Box3().setFromObject(source);
+  const dimensions=bounds.getSize(new THREE.Vector3());
+  if(dimensions.length()<.01)throw Error('Fachada urbana vacía');
+  const fit=Math.min(26/Math.max(dimensions.x,dimensions.z),32/dimensions.y);
+  source.scale.setScalar(fit);
+  source.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(source),center=box.getCenter(new THREE.Vector3());
+  source.position.set(-center.x,-box.min.y,-center.z);
+  source.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true;}});
+  for(const [x,z,rotation] of [[29,19,0],[-30,-19,Math.PI],[29,-19,Math.PI],[-30,19,0]]){
+    const instance=source.clone(true),root=new THREE.Group();
+    root.position.set(x,.3,z);root.rotation.y=rotation;root.add(instance);scene.add(root);highDetailProps.push(root);
+  }
+}
+function installStreetLamps(loaded) {
+  const source=loaded.scene,dimensions=new THREE.Box3().setFromObject(source).getSize(new THREE.Vector3());
+  if(dimensions.y<.01)throw Error('Farola sin altura');
+  source.scale.setScalar(9/dimensions.y);
+  source.updateMatrixWorld(true);
+  const b=new THREE.Box3().setFromObject(source),c=b.getCenter(new THREE.Vector3());
+  source.position.set(-c.x,-b.min.y,-c.z);
+  for(const [x,z] of [[16,16],[-16,16],[16,-16],[-16,-16]]){
+    const root=new THREE.Group();root.position.set(x,.3,z);root.add(source.clone(true));scene.add(root);highDetailProps.push(root);
+  }
+}
 const world=createWorld(53,60);
 for(let i=0;i<world.agents.length;i++){
   const model=person(choose(['#c8a68d','#cf6651','#8f9d9b','#b7b39f','#556e85','#8e9c76']));
@@ -347,24 +398,20 @@ function move(dt, input){
     player.visible=false;
     $('speedValue').textContent=Math.round(Math.abs(velocity)*3.6);
   }else{
-    let forward=input.forward;
-    let sideways=input.sideways;
-    const length=Math.hypot(forward,sideways);
-    if(length){
-      forward/=length;sideways/=length;
-      const dx=Math.sin(yaw)*forward+Math.cos(yaw)*sideways;
-      const dz=Math.cos(yaw)*forward-Math.sin(yaw)*sideways;
-      const speed=input.run?9:5;
-      const nx=obj.position.x+dx*speed*dt,nz=obj.position.z+dz*speed*dt;
-      if(!blocked(nx,obj.position.z))obj.position.x=nx;
-      if(!blocked(obj.position.x,nz))obj.position.z=nz;
-      obj.rotation.y=THREE.MathUtils.lerp(obj.rotation.y,Math.atan2(dx,dz),Math.min(1,dt*11));
-    }
-    $('speedValue').textContent=length?(input.run?'32':'18'):'0';
+    stepMotor(motor,input,yaw,dt,blocked);
+    obj.position.set(motor.x,0,motor.z);
+    obj.rotation.y=motor.heading;
+    if(walkAction){walkAction.paused=!motor.moving;walkAction.timeScale=THREE.MathUtils.clamp(motor.speed/4.4,.5,1.8);}
+    characterMixer?.update(dt);
+    $('speedValue').textContent=Math.round(motor.speed*3.6);
   }
   const focus=obj.position.clone().add(new THREE.Vector3(0,driving?1.5:1.6,0));
   const offset=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch)*distance,Math.sin(pitch)*distance+1,Math.cos(yaw)*Math.cos(pitch)*distance);
   if(cameraMode===1){offset.multiplyScalar(.45);}else if(cameraMode===2){offset.set(0,30,.1);}
+  if(cameraMode!==2){
+    const end=focus.clone().add(offset);
+    offset.multiplyScalar(cameraClearance(focus,end,buildings));
+  }
   camera.position.lerp(focus.clone().add(offset),Math.min(1,dt*7));camera.lookAt(focus);
   sun.position.set(obj.position.x-150,180,obj.position.z-120);
   sun.target.position.copy(obj.position);
@@ -374,7 +421,7 @@ function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setS
 window.addEventListener('resize',resize);resize();
 function action(type){
   if(type==='vehicle'){
-    if(driving){driving=false;player.visible=true;player.position.copy(heroCar.position).add(new THREE.Vector3(2.6,0,0));velocity=0;notice('Has bajado del vehículo');}
+    if(driving){driving=false;player.visible=true;player.position.copy(heroCar.position).add(new THREE.Vector3(2.6,0,0));motor.x=player.position.x;motor.z=player.position.z;motor.vx=motor.vz=0;velocity=0;notice('Has bajado del vehículo');}
     else if(player.position.distanceTo(heroCar.position)<8){driving=true;notice('Vehículo: WASD conducir · E salir');}
     else notice('Acércate al vehículo dorado para conducirlo');
   }
@@ -474,6 +521,8 @@ function animate(now){
   const pad=readGamepad(navigator.getGamepads?.());
   const input=movement(keys,pad,touch);
   move(dt,input);
+  const focusPosition=active().position;
+  for(const prop of highDetailProps)prop.visible=prop.position.distanceToSquared(focusPosition)<140*140;
   yaw-=pad.lookX*dt*2.5;
   pitch=THREE.MathUtils.clamp(pitch+pad.lookY*dt*1.5,.08,1.22);
   for(const [name,pressed] of Object.entries(pad.actions))if(pressed&&!previousActions[name])action(name);
@@ -539,6 +588,11 @@ async function bootVisuals() {
       const data = result.files.get('concept-car.glb');
       const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
       tasks.push(new GLTFLoader().parseAsync(buffer, '').then(installDetailedCar));
+    }
+    for(const [name,installer] of [['cesium-man.glb',installCharacter],['urban-facade.glb',installUrbanDetail],['street-lamp.glb',installStreetLamps]]){
+      if(!result.files.has(name))continue;
+      const data=result.files.get(name),buffer=data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength);
+      tasks.push(new GLTFLoader().parseAsync(buffer,'').then(installer));
     }
     const settled = await Promise.allSettled(tasks);
     const failures = [...result.errors, ...settled.filter(s => s.status === 'rejected').map(s => s.reason?.message || String(s.reason))];
