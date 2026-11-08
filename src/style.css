@@ -69,3 +69,7 @@
   #touchInteract{right:20px;bottom:calc(34px + env(safe-area-inset-bottom,0px))}
   .speed{bottom:calc(205px + env(safe-area-inset-bottom,0px));right:18px}
 }
+
+/* 0.15 visual lab: transparent profiler kept separate from gameplay controls. */
+.perf{position:absolute;top:64px;right:0;padding:7px 10px;border:1px solid #d5e6dc42;border-radius:6px;background:#09191bd1;color:#bde7cd;font:700 10px 'DM Sans',sans-serif;letter-spacing:.6px;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000;white-space:nowrap}
+@media(max-width:850px){.perf{top:51px;right:0;font-size:8px;padding:5px 7px;max-width:150px;text-align:right}}
