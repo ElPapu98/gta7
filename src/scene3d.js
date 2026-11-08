@@ -501,8 +501,12 @@ function installGeographicCity(data, elevationAt = () => 0) {
   const windowMat = new THREE.MeshStandardMaterial({color:'#274653',metalness:.36,roughness:.24,emissive:'#131c20',emissiveIntensity:.12});
   const transform = new THREE.Object3D();
   const maxWindows = mobileGpu ? 4500 : 12500;
-  for (const [index, feature] of data.buildings.entries()) {
-    if (index > (mobileGpu ? 1700 : 4000) || !renderArea(feature.points)) continue;
+  // Keep the closest mapped buildings first. OSM feature order is not spatial;
+  // naively taking the first N can leave the player's neighborhood empty.
+  const proximity=feature=>feature.points.reduce((acc,p)=>acc+p.x*p.x+p.z*p.z,0)/feature.points.length;
+  const orderedBuildings=data.buildings.filter(feature=>renderArea(feature.points)).sort((a,b)=>proximity(a)-proximity(b));
+  for (const [index, feature] of orderedBuildings.entries()) {
+    if (index >= (mobileGpu ? 1700 : 4000)) break;
     const xValues = feature.points.map(p=>p.x), zValues = feature.points.map(p=>p.z);
     const minX = Math.min(...xValues), maxX = Math.max(...xValues);
     const minZ = Math.min(...zValues), maxZ = Math.max(...zValues);
