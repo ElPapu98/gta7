@@ -16,7 +16,7 @@ npm test
 
 The `.github/workflows/pages.yml` workflow runs tests and deploys a static preview on every push to `main`. In **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. Public project URL: `https://elpapu98.github.io/gta7/`. The workflow publishes only browser assets; the Rust native/WASM build remains experimental.
 
-Move with WASD/arrow keys; hold Shift to run; drag the mouse to rotate the camera; mouse wheel zooms. Approach the golden car and press E to enter/exit; drive with WASD. Change the camera, lighting and traffic from the controls. Space records a simulated incident in the underlying reference simulation.
+Move with WASD/arrow keys; hold Shift to run; drag the mouse to rotate the camera; mouse wheel zooms. Approach the golden car and press E to enter/exit; drive with WASD. Press F at the yellow mission marker to accept, collect and deliver packages against a countdown. Contracts earn cash, unlock longer routes and save progress in localStorage. Change the camera, lighting and traffic from the controls. Space records a simulated incident in the underlying reference simulation.
 
 The 3D scene loads Three.js 0.170.0 as a pinned ES module from jsDelivr. An internet connection is required. It uses procedural materials, geometry and lighting without proprietary game assets; this is a **stylized architectural preview**, not photorealistic AAA content.
 
@@ -36,6 +36,7 @@ The WASM artifact created by the second command is `pkg/gta7_core_bg.wasm`. Rena
 | Subsystem | First delivery | Long-term implementation |
 | --- | --- | --- |
 | Citizen simulation | JS deterministic reference | Rust `gta7-core`, compiled to WASM and native |
+| Missions and economy | 3 timed courier jobs, cash and local progress | Data-driven jobs, world economy, server authority |
 | Simulation clock | Fixed 30 Hz | Fixed tick, rollback/replay logs |
 | Graphics | Three.js WebGL 2 procedural district | Bevy / wgpu / WebGPU with a native target |
 | Physics | Point navigation prototype | Rapier 3D with authoritative collision |
@@ -90,7 +91,7 @@ INPUT / GAMEPLAY           RENDERER (WebGPU/native)
 - Report timing is simulated and police dispatch is a recorded event, not a physical pursuing police unit.
 - `Rust` crate is an initial API sketch with a smaller behavior set than the browser reference.
 - Runtime compilation is not verified in environments without Rust/Cargo.
-- No multiplayer, dialogue model, vehicle driving, persistence backend or third-party asset pipeline exists yet.
+- No multiplayer, dialogue model, persistence backend or bundled third-party asset pipeline exists yet. Local progress storage exists only for mission cash/count.
 
 ## Project structure
 
@@ -98,6 +99,7 @@ INPUT / GAMEPLAY           RENDERER (WebGPU/native)
 gta7/
   index.html                    Browser diagnostics
   src/scene3d.js                Procedural Three.js environment + 3D controls
+  src/gameplay.js               Headless mission state machine and economy
   src/main.js                   Retained legacy 2D diagnostics renderer
   src/simulation.js             Deterministic JS reference
   src/style.css                 UI

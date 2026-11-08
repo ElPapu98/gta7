@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createWorld, step, incident } from './simulation.js';
+import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -37,6 +38,8 @@ const asphalt = std('#373b3b', 1), pavement = std('#9d9e91'), white = std('#e2dd
 const greenery = [std('#426b48'), std('#346547'), std('#638354')];
 const geometry = { box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 8), sphere: new THREE.SphereGeometry(1, 9, 7) };
 const buildings = [], vehicles = [], pedestrians = [];
+let campaign;
+try { campaign = newGame(JSON.parse(localStorage.getItem('gta7-progress-v1') || '{}')); } catch { campaign = newGame(); }
 
 function box(parent, width, height, depth, x, y, z, material, shadow = false) {
   const mesh = new THREE.Mesh(geometry.box, material);
@@ -204,6 +207,15 @@ for(let i=0;i<36;i++){
 // A parked, enterable car by the player's start.
 const heroCar=carModel('#e2bf83',1.12);heroCar.position.set(5,0,14);scene.add(heroCar);
 
+// Objective visualization: beacon, ground ring and floating waypoint diamond.
+const objectiveGroup = new THREE.Group();scene.add(objectiveGroup);
+const beamMaterial = new THREE.MeshBasicMaterial({color:'#f4c575',transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide});
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.8,2.8,28,24,1,true),beamMaterial);beam.position.y=14;objectiveGroup.add(beam);
+const ring = new THREE.Mesh(new THREE.RingGeometry(3.3,4.2,42),new THREE.MeshBasicMaterial({color:'#ffdc92',side:THREE.DoubleSide,transparent:true,opacity:.9}));ring.rotation.x=-Math.PI/2;ring.position.y=.18;objectiveGroup.add(ring);
+const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(1.9),new THREE.MeshBasicMaterial({color:'#ffd18a'}));diamond.position.y=7;objectiveGroup.add(diamond);
+const routeLineMaterial = new THREE.LineDashedMaterial({color:'#edc185',dashSize:3,gapSize:2,transparent:true,opacity:.7});
+const routeLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),routeLineMaterial);scene.add(routeLine);
+
 function person(color='#d9b4a1'){
   const g=new THREE.Group();
   const trousers=std('#272f38'), shirt=std(color), skin=std('#b98b6d');
@@ -276,6 +288,17 @@ document.addEventListener('keydown',e=>{
     else if(player.position.distanceTo(heroCar.position)<8){driving=true;notice('Vehículo: WASD conducir · E salir');}
     else notice('Acércate al vehículo dorado para conducirlo');
   }
+  if(key==='f'&&!e.repeat){
+    const result=interact(campaign,{x:active().position.x,z:active().position.z});
+    if(!result){notice('Acércate al marcador amarillo para interactuar');}
+    else if(result.type==='accepted')notice(`Nuevo contrato: ${result.job.title} · $${result.job.reward}`);
+    else if(result.type==='collected')notice('Paquete recogido. ¡Llévalo al destino!');
+    else if(result.type==='completed'){
+      notice(`¡Entrega completada! +$${result.job.reward}`);
+      try {localStorage.setItem('gta7-progress-v1',JSON.stringify(saveProgress(campaign)));} catch {}
+    }
+    refreshMission();
+  }
   if(key===' '&&!e.repeat){const p=active().position;world.player.x=p.x+630;world.player.y=p.z+630;const event=incident(world);notice(`Incidente registrado · ${event.witnesses.length} testigos`);}
   keys.add(key);
 });
@@ -305,16 +328,35 @@ function updateMap(){
   }
   mc.fillStyle='#d3b789';for(const b of buildings)mc.fillRect(90+(b.x-b.w/2-p.x)*scale,90+(b.z-b.d/2-p.z)*scale,b.w*scale,b.d*scale);
   mc.fillStyle='#f3c67e';mc.beginPath();mc.arc(90,90,4,0,Math.PI*2);mc.fill();
+  const goal=objective(campaign);mc.fillStyle='#ffe0a0';mc.beginPath();mc.arc(90+(goal.x-p.x)*scale,90+(goal.z-p.z)*scale,5,0,Math.PI*2);mc.fill();
   $('coords').textContent=`${Math.round(p.x+400)} · ${Math.round(p.z+400)}`;
+}
+function refreshMission(){
+  const job=activeJob(campaign), target=objective(campaign), position=active().position;
+  const distance=Math.round(distanceTo({x:position.x,z:position.z},target));
+  $('wallet').textContent='$'+campaign.cash.toLocaleString('es-EC');
+  $('missionState').textContent=job?(campaign.stage==='pickup'?'CONTRATO / RECOGIDA':'CONTRATO / ENTREGA'):'CONTRATOS / DISPONIBLE';
+  $('missionName').textContent=job?job.title:'Tu próximo encargo';
+  $('missionDetail').textContent=job?(campaign.stage==='pickup'?'Conduce hasta el punto amarillo y pulsa F para recoger el paquete.':'Lleva el paquete al destino y pulsa F para completar la entrega.'):
+    'Acércate al marcador amarillo y pulsa F para aceptar un trabajo. Completa entregas para ganar dinero.';
+  $('missionDistance').textContent=target.text.toUpperCase()+' · '+distance+' m';
+  $('missionTime').textContent=job?Math.floor(campaign.secondsLeft/60)+':'+String(Math.floor(campaign.secondsLeft%60)).padStart(2,'0'):'F · INTERACTUAR';
+  $('missionProgress').style.width=job?Math.max(0,campaign.secondsLeft/job.seconds*100)+'%':'100%';
+  objectiveGroup.position.set(target.x,0,target.z);
+  const roadPosition=new THREE.Vector3(position.x,1.2,position.z),goalPosition=new THREE.Vector3(target.x,1.2,target.z);
+  routeLine.geometry.dispose();routeLine.geometry=new THREE.BufferGeometry().setFromPoints([roadPosition,goalPosition]);routeLine.computeLineDistances();
 }
 let previous=performance.now(),mapTimer=0;
 function animate(now){
   const dt=Math.min((now-previous)/1000,.05);previous=now;
   move(dt);
+  const jobEvent=tickGame(campaign,dt);
+  if(jobEvent){notice(`Tiempo agotado: ${jobEvent.job.title}`);refreshMission();}
   if(trafficEnabled){for(const car of vehicles){if(!car.userData.speed)continue;const forward=new THREE.Vector3(Math.sin(car.rotation.y),0,Math.cos(car.rotation.y));car.position.addScaledVector(forward,car.userData.speed*dt);if(Math.abs(car.position.x)>395)car.position.x*=-.98;if(Math.abs(car.position.z)>395)car.position.z*=-.98;}}
   step(world,1/30);
   for(let i=0;i<pedestrians.length;i++){const a=world.agents[i],m=pedestrians[i];m.position.set((a.x-630)*.60,0,(a.y-630)*.60);}
-  mapTimer+=dt;if(mapTimer>.25){updateMap();mapTimer=0;}
+  diamond.rotation.y+=dt*1.2;diamond.position.y=7+Math.sin(now*.002)*.7;ring.rotation.z+=dt*.6;
+  mapTimer+=dt;if(mapTimer>.2){updateMap();refreshMission();mapTimer=0;}
   renderer.render(scene,camera);requestAnimationFrame(animate);
 }
 resize();requestAnimationFrame(animate);

@@ -3,10 +3,11 @@
 <body><div id="game"><canvas id="scene" aria-label="Vista 3D interactiva del distrito Costa"></canvas><div id="loading"><div class="loadmark">G<span>7</span></div><h1>Construyendo Distrito Costa</h1><p>Preparando edificios, iluminación y tráfico 3D…</p><div class="loadbar"><i></i></div></div>
 <header class="hud"><div class="logo"><span class="insignia">VII</span><div><strong>GTA7<span>.WASM</span></strong><small>DISTRITO COSTA / 3D TECH PREVIEW</small></div></div><div class="hudright"><span class="live"><i></i> PRE-ALPHA 0.2</span><button id="quality">CALIDAD: ALTA</button><button id="sound" title="Sonido">♫ OFF</button></div></header>
 <div class="location"><div class="tag">SAN AURELIO, COSTA DEL PACÍFICO</div><h2>Distrito Costa</h2><p>Un mundo que apenas empieza.</p></div>
+<section class="mission" aria-live="polite"><div class="mission-top"><span id="missionState">CONTRATOS / DISPONIBLE</span><strong id="wallet">$0</strong></div><h3 id="missionName">Tu primer encargo</h3><p id="missionDetail">Acércate al punto amarillo junto al coche y pulsa F para aceptar una entrega.</p><div class="mission-bottom"><span id="missionDistance">OBJETIVO · 0 m</span><span id="missionTime">SIN LÍMITE</span></div><div class="progress"><i id="missionProgress"></i></div></section>
 <div class="compass"><span>N</span><div class="pointer">◆</div></div>
 <div class="minimap"><canvas id="map" width="180" height="180"></canvas><div class="maplabel">DISTRITO COSTA <span id="coords">000 · 000</span></div></div>
 <div class="speed" id="speed"><b id="speedValue">0</b><span>KM/H</span></div>
-<div class="prompt" id="prompt">WASD MOVER <em>•</em> RATÓN GIRAR CÁMARA <em>•</em> SHIFT CORRER <em>•</em> E SUBIR AL COCHE</div>
+<div class="prompt" id="prompt">WASD MOVER <em>•</em> RATÓN CÁMARA <em>•</em> E COCHE <em>•</em> F INTERACTUAR <em>•</em> SHIFT CORRER</div>
 <div class="buttons"><button id="view">◉ CAMBIAR CÁMARA</button><button id="time">☀ ATARDECER</button><button id="traffic">♢ TRÁFICO: ON</button></div>
 <div class="notice" id="notice"></div><div class="credit">REAL-TIME 3D SCENE · WEBGL 2 · PROCEDURAL ENVIRONMENT</div>
 </div><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script><script type="module" src="./src/scene3d.js"></script></body></html>
