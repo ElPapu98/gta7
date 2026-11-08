@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111719"><title>GTA7 — Realism Lab</title>
+  <link rel="stylesheet" href="./src/realism.css?v=1">
+</head>
+<body>
+  <canvas id="world" aria-label="Escena tridimensional interactiva"></canvas>
+  <div id="intro"><span class="eyebrow">GTA7 / VISUAL EXPERIMENT 01</span><h1>THE<br>STREET</h1><p>Una calle compacta. Materiales escaneados. Iluminación cinematográfica. Exploración libre.</p><div id="progress">Preparando entorno…</div><button id="enter" disabled>INICIAR EXPERIENCIA</button><small>Escena artística experimental, no recreación geográfica exacta de Quito.</small></div>
+  <header><div class="brand">G<span>7</span><small>REALISM LAB<br>VOL. 01</small></div><div class="session"><span class="dot"></span> LIVE SCENE <span id="fps">-- FPS</span></div><button id="settings" aria-label="Alternar calidad">ULTRA</button></header>
+  <div class="location"><span>01 / URBAN STUDY</span><strong>LA CALLE</strong><small>Escena vertical de prueba · Ecuador</small></div>
+  <div class="objective"><span>EXPLORACIÓN / 01</span><strong id="objective">RECORRE LA CALLE</strong><small id="distance">Punto de interés · 0 m</small><div class="track"><i id="track"></i></div></div>
+  <div class="help"><b>W A S D</b> CAMINAR <i></i> <b>RATÓN</b> CÁMARA <i></i> <b>SHIFT</b> CORRER <i></i> <b>V</b> VISTA</div>
+  <div class="touch" id="touch"><div id="pad"><div id="nub"></div></div><div id="look"></div><button id="sprint">CORRER</button><button id="view">VISTA</button></div>
+  <div class="footer"><span>CC0 / POLY HAVEN · THREE.JS / PBR</span><a href="./v0.16.0.html">VERSIÓN ANTERIOR</a></div>
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+  <script type="module" src="./src/realism.js?v=1"></script>
+</body></html>
