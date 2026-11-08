@@ -20,6 +20,10 @@ export async function fetchVisualAssets(manifestUrl, { onProgress = () => {}, fe
       const asset = manifest[cursor++];
       try {
         const url = new URL(asset.name, manifestHref);
+        // GitHub Pages permits up to 10 minutes of browser/CDN caching.
+        // A content hash makes updated assets a new URL without forcing a
+        // full no-store download on every visit.
+        if(asset.sha256)url.searchParams.set('asset',asset.sha256.slice(0,16));
         const file = await fetcher(url, { signal: AbortSignal.timeout(60000) });
         if (!file.ok) throw Error(`HTTP ${file.status}`);
         if (!file.body?.getReader) throw Error('Streaming no disponible');
@@ -36,6 +40,10 @@ export async function fetchVisualAssets(manifestUrl, { onProgress = () => {}, fe
         if (length !== asset.bytes) throw Error(`Tamaño incorrecto: ${length} / ${asset.bytes}`);
         const bytes = new Uint8Array(length);let offset = 0;
         for (const chunk of chunks) { bytes.set(chunk, offset);offset += chunk.byteLength; }
+        if(asset.sha256 && globalThis.crypto?.subtle){
+          const hash=Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');
+          if(hash!==asset.sha256)throw Error('SHA-256 de recurso incorrecto');
+        }
         files.set(asset.name, bytes);
       } catch (error) {
         errors.push(`${asset.name}: ${error.message}`);

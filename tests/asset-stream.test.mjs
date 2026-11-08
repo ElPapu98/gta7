@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
+import { createHash } from 'node:crypto';
 import { fetchVisualAssets } from '../src/asset-stream.js';
 
 test('progress reports actual received bytes, not an animated estimate', async () => {
@@ -34,4 +35,17 @@ test('selecting a streaming phase excludes other files from its byte budget', as
   assert.equal(result.total,2);
   assert.equal(result.files.size,1);
   assert.equal(result.errors.length,0);
+});
+test('content hash prevents stale assets and detects unexpected bytes', async () => {
+  const hash=createHash('sha256').update(Buffer.from([1,2])).digest('hex');
+  const seen=[];
+  const fetcher=async url=>{
+    seen.push(String(url));
+    return String(url).includes('manifest.json')
+      ? {ok:true,json:async()=>[{name:'texture.jpg',bytes:2,sha256:hash}]}
+      : {ok:true,body:new ReadableStream({start(c){c.enqueue(new Uint8Array([1,2]));c.close();}})};
+  };
+  const r=await fetchVisualAssets('https://example.org/assets/manifest.json',{fetcher});
+  assert.equal(r.errors.length,0);
+  assert.ok(seen.some(url=>url.includes(`asset=${hash.slice(0,16)}`)));
 });

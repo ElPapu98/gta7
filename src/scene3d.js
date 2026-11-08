@@ -3,11 +3,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { fetchVisualAssets } from './asset-stream.js';
-import { movement, readGamepad } from './controls.js';
-import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js';
-import { createWorld, step, incident } from './simulation.js';
-import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js';
+import { fetchVisualAssets } from './asset-stream.js?v=0.7.0';
+import { movement, readGamepad } from './controls.js?v=0.7.0';
+import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.7.0';
+import { createWorld, step, incident } from './simulation.js?v=0.7.0';
+import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.7.0';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -51,7 +51,7 @@ const rng = (() => { let s = 76543; return () => ((s = (Math.imul(s, 1664525) + 
 const rand = (min, max) => min + rng() * (max - min);
 const choose = a => a[Math.floor(rng() * a.length)];
 const std = (color, roughness = .85, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
-const asphalt = std('#373b3b', 1), pavement = std('#9d9e91'), concrete = std('#aba99b'), white = std('#e2ddca'), amber = std('#d4ac66');
+const pavement = std('#9d9e91'), concrete = std('#aba99b'), white = std('#e2ddca'), amber = std('#d4ac66');
 const greenery = [std('#426b48'), std('#346547'), std('#638354')];
 const geometry = { box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 8), sphere: new THREE.SphereGeometry(1, 9, 7) };
 const buildings = [], vehicles = [], pedestrians = [];
@@ -130,8 +130,10 @@ road.rotation.x=-Math.PI/2;road.position.y=.018;road.receiveShadow=true;scene.ad
 
 for(let i=-radius;i<=radius;i++){
   const t=i*spacing;
-  box(scene, streetWidth,.09,spacing*(radius*2+1)+60,t,.06,0,asphalt);
-  box(scene, spacing*(radius*2+1)+60,.09,streetWidth,0,.06,t,asphalt);
+  // Real PBR road surface: previously the flat asphalt boxes obscured the
+  // textured plane entirely, so players never saw the downloaded asphalt.
+  box(scene, streetWidth,.09,spacing*(radius*2+1)+60,t,.06,0,roadMat);
+  box(scene, spacing*(radius*2+1)+60,.09,streetWidth,0,.06,t,roadMat);
   for(let j=-radius;j<=radius;j++){
     const z=j*spacing;
     if(j<radius){
