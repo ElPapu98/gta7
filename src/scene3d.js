@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { fetchVisualAssets } from './asset-stream.js?v=0.10.0';
 import { movement, readGamepad, toggleTouchSprint } from './controls.js?v=0.10.0';
@@ -41,6 +46,18 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 const camera = new THREE.PerspectiveCamera(65, 1, .15, 2000);
 camera.position.set(8, 6, 15);
+// A restrained cinematic highlight pass. The ordinary renderer remains a
+// tested fallback on lower-end phones and browsers without a stable FBO path.
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const ambientOcclusion = new SSAOPass(scene, camera, 1, 1);
+ambientOcclusion.kernelRadius = 9;
+ambientOcclusion.minDistance = .003;
+ambientOcclusion.maxDistance = .13;
+composer.addPass(ambientOcclusion);
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), .24, .32, .88);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
 const clock = new THREE.Clock();
 const sun = new THREE.DirectionalLight('#fff0d5', 2.8);
 sun.position.set(-180, 180, -120);
@@ -50,6 +67,8 @@ sun.shadow.camera.left = -75; sun.shadow.camera.right = 75;
 sun.shadow.camera.top = 75; sun.shadow.camera.bottom = -75;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 600;
 sun.shadow.bias = -.0002;
+sun.shadow.normalBias = .035;
+sun.shadow.radius = 2.5;
 sun.target.position.set(0, 0, 0);
 scene.add(sun, sun.target);
 const ambient = new THREE.HemisphereLight('#c4d8f3', '#827665', 1.2);
@@ -548,7 +567,7 @@ function installGeographicCity(data, elevationAt = () => 0) {
     crossingMarks.forEach((matrix,i)=>crossings.setMatrixAt(i,matrix));
     crossings.instanceMatrix.needsUpdate=true;crossings.frustumCulled=false;city.add(crossings);
   }
-  const newBuildings = [], windowMatrices = [], storefrontMatrices=[];
+  const newBuildings = [], windowMatrices = [], storefrontMatrices=[], awningMatrices=[], roofUnits=[];
   const windowGeometry = new THREE.BoxGeometry(1,1,.10);
   const windowMat = new THREE.MeshStandardMaterial({color:'#274653',metalness:.36,roughness:.24,emissive:'#131c20',emissiveIntensity:.12});
   const storefrontMat=new THREE.MeshStandardMaterial({color:'#344c51',metalness:.32,roughness:.22,emissive:'#111b20',emissiveIntensity:.08});
@@ -571,6 +590,13 @@ function installGeographicCity(data, elevationAt = () => 0) {
     if (!mesh) continue;
     city.add(mesh);
     newBuildings.push({ x:centerX, z:centerZ, w:maxX-minX, d:maxZ-minZ });
+    // Batched rooftop equipment helps distinguish the nearby silhouettes.
+    if(Math.hypot(centerX,centerZ)<260 && height>10 && roofUnits.length<650 && index%3!==0){
+      transform.position.set(centerX,base+height+.48,centerZ);
+      transform.rotation.set(0,(index%7)*.38,0);
+      transform.scale.set(Math.min(3.2,(maxX-minX)*.3),.96,Math.min(2.6,(maxZ-minZ)*.3));
+      transform.updateMatrix();roofUnits.push(transform.matrix.clone());
+    }
     // Near-camera street-level shopfronts are real 3D facade additions,
     // aligned to each OSM footprint edge rather than to an imaginary grid.
     if(Math.hypot(centerX,centerZ)<220 && height>5 && storefrontMatrices.length<450){
@@ -581,6 +607,11 @@ function installGeographicCity(data, elevationAt = () => 0) {
         transform.rotation.set(0,Math.atan2(-dz,dx),0);
         transform.scale.set(Math.min(edge*.76,12),2.05,.18);
         transform.updateMatrix();storefrontMatrices.push(transform.matrix.clone());
+        if(awningMatrices.length<360 && index%2===0){
+          transform.position.y=base+3.15;
+          transform.scale.set(Math.min(edge*.68,10),.12,1.55);
+          transform.updateMatrix();awningMatrices.push(transform.matrix.clone());
+        }
       }
     }
     // Window units are a visual reconstruction, not measured facade data.
@@ -605,13 +636,30 @@ function installGeographicCity(data, elevationAt = () => 0) {
   }
   if(windowMatrices.length) {
     const windows=new THREE.InstancedMesh(windowGeometry,windowMat,windowMatrices.length);
-    windowMatrices.forEach((matrix,index)=>windows.setMatrixAt(index,matrix));
+    const palette=['#244454','#344f59','#53707a','#778386','#927f61'];
+    windowMatrices.forEach((matrix,index)=>{
+      windows.setMatrixAt(index,matrix);
+      windows.setColorAt(index,new THREE.Color(palette[(Math.imul(index+11,2654435761)>>>0)%palette.length]));
+    });
     windows.instanceMatrix.needsUpdate=true; windows.frustumCulled=false;city.add(windows);
   }
   if(storefrontMatrices.length){
     const shopfronts=new THREE.InstancedMesh(windowGeometry,storefrontMat,storefrontMatrices.length);
     storefrontMatrices.forEach((matrix,i)=>shopfronts.setMatrixAt(i,matrix));
     shopfronts.instanceMatrix.needsUpdate=true;shopfronts.frustumCulled=false;city.add(shopfronts);
+  }
+  if(awningMatrices.length){
+    const awnings=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),
+      new THREE.MeshStandardMaterial({color:'#b5ad98',roughness:.76,metalness:.12}),awningMatrices.length);
+    awningMatrices.forEach((matrix,i)=>{
+      awnings.setMatrixAt(i,matrix);
+      awnings.setColorAt(i,new THREE.Color(['#746f66','#a58b76','#829493','#a88f71'][i%4]));
+    });city.add(awnings);
+  }
+  if(roofUnits.length){
+    const equipment=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),
+      new THREE.MeshStandardMaterial({color:'#777d7b',roughness:.72,metalness:.45}),roofUnits.length);
+    roofUnits.forEach((matrix,i)=>equipment.setMatrixAt(i,matrix));city.add(equipment);
   }
   if (!city.children.length || !newBuildings.length) return false;
   for (const child of fictionalDistrict) child.visible = false;
@@ -826,7 +874,21 @@ for(let i=0;i<world.agents.length;i++){
   model.scale.setScalar(rand(.70,.80));scene.add(model);pedestrians.push(model);
 }
 
-let qualityHigh=true, timeMode=0, trafficEnabled=true, soundEnabled=false, driving=false, cameraMode=0;
+const qualityModes = ['MEDIA', 'ALTA', 'ULTRA'];
+let qualityLevel = mobileGpu ? 1 : 2;
+let timeMode=0, trafficEnabled=true, soundEnabled=false, driving=false, cameraMode=0;
+let postFxEnabled = false;
+function applyQuality() {
+  const pixelRatio = Math.min(devicePixelRatio, [1, mobileGpu ? 1.15 : 1.5, mobileGpu ? 1.35 : 2][qualityLevel]);
+  renderer.setPixelRatio(pixelRatio);
+  composer.setPixelRatio(pixelRatio);
+  renderer.shadowMap.enabled = qualityLevel > 0;
+  renderer.shadowMap.needsUpdate = true;
+  postFxEnabled = qualityLevel === 2;
+  ambientOcclusion.enabled = postFxEnabled;
+  $('quality').textContent = `CALIDAD: ${qualityModes[qualityLevel]}`;
+  resize();
+}
 let yaw=.45,pitch=.31,distance=12, velocity=0, steer=0;
 const keys=new Set();let pointerDown=false,lastPointer={x:0,y:0};
 const touch={x:0,y:0,run:false};
@@ -885,7 +947,7 @@ function move(dt, input){
   sun.target.position.copy(obj.position);
 }
 
-function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);composer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
 window.addEventListener('resize',resize);resize();
 function action(type){
   if(type==='vehicle'){
@@ -979,7 +1041,7 @@ $('time').onclick=()=>{timeMode=(timeMode+1)%3;
   $('time').textContent=['☀ ATARDECER','☀ MEDIODÍA','☾ NOCHE'][timeMode];
 };
 $('traffic').onclick=()=>{trafficEnabled=!trafficEnabled;$('traffic').textContent='♢ TRÁFICO: '+(trafficEnabled?'ON':'OFF');};
-$('quality').onclick=()=>{qualityHigh=!qualityHigh;renderer.setPixelRatio(Math.min(devicePixelRatio,qualityHigh?(mobileGpu?1.15:1.65):1));renderer.shadowMap.enabled=qualityHigh;renderer.shadowMap.needsUpdate=true;resize();$('quality').textContent='CALIDAD: '+(qualityHigh?'ALTA':'MEDIA');notice('Calidad '+(qualityHigh?'alta':'media'));};
+$('quality').onclick=()=>{qualityLevel=(qualityLevel+1)%3;applyQuality();notice(`Calidad ${qualityModes[qualityLevel]} · ${postFxEnabled?'bloom cinematográfico':'render directo'}`);};
 $('sound').onclick=()=>{soundEnabled=!soundEnabled;$('sound').textContent='♫ '+(soundEnabled?'ON':'OFF');notice('Audio ambiental '+(soundEnabled?'activado (próximamente)':'desactivado'));};
 
 const map=$('map'),mc=map.getContext('2d');
@@ -1023,6 +1085,7 @@ function refreshMission(){
   routeLine.geometry.dispose();routeLine.geometry=new THREE.BufferGeometry().setFromPoints([roadPosition,goalPosition]);routeLine.computeLineDistances();
 }
 let previous=performance.now(),mapTimer=0,simAccumulator=0;
+let perfFrames=0, perfElapsed=0;
 function animate(now){
   const dt=Math.min((now-previous)/1000,.05);previous=now;
   const pad=readGamepad(navigator.getGamepads?.());
@@ -1080,7 +1143,13 @@ function animate(now){
     else surface.scale.y=.8+Math.sin(now*.003+i*.8)*.2;
   }
   mapTimer+=dt;if(mapTimer>.2){updateMap();refreshMission();mapTimer=0;}
-  renderer.render(scene,camera);requestAnimationFrame(animate);
+  if(postFxEnabled)composer.render();else renderer.render(scene,camera);
+  perfFrames++;perfElapsed+=dt;
+  if(perfElapsed>=1){
+    $('perf').textContent=`${Math.round(perfFrames/perfElapsed)} FPS · ${renderer.info.render.calls} DRAW · ${renderer.info.render.triangles.toLocaleString('es-EC')} TRI`;
+    perfFrames=0;perfElapsed=0;
+  }
+  requestAnimationFrame(animate);
 }
 const loadElement = $('loading');
 let gameStarted = false;
@@ -1089,6 +1158,7 @@ function startGame() {
   gameStarted = true;
   $('loadContinue').hidden = true;
   resize();
+  applyQuality();
   previous = performance.now();
   renderer.render(scene,camera);
   loadElement.classList.add('hidden');
