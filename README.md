@@ -1,5 +1,12 @@
 # GTA7.WASM — Living City Lab
 
+**Next architecture:** [`next.html`](next.html) is a completely separate
+PlayCanvas 2.23.3 WebGPU-first experiment (WebGL2 fallback) with real Gaussian
+Splat captures licensed CC BY 4.0. It supports orbit inspection and bounded
+first-person movement, plus mobile touch controls. See
+[`docs/NEXT-WEBGPU.md`](docs/NEXT-WEBGPU.md) for attribution and constraints.
+The previous experience remains the default entry point and is not replaced.
+
 **Realism Lab / The Street:** la portada publicada ahora presenta una escena
 urbana compacta independiente de la cartografía OSM: asfalto y aceras PBR,
 fachadas modulares, coches y mobiliario de Poly Haven CC0, iluminación HDR,
