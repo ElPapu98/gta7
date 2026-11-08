@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0c1317"><title>GTA7 / NEXT — WebGPU + Gaussian Splatting</title>
+  <link rel="stylesheet" href="./src/next/style.css?v=1">
+  <script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.23.3/+esm"}}</script>
+</head>
+<body>
+  <canvas id="viewport" aria-label="Entorno fotorrealista interactivo"></canvas>
+  <div id="loading" role="status"><div class="eyebrow">GTA7 / NEXT-GEN EXPERIMENT</div><h1>REALITY<br><span>CAPTURE</span></h1><p>Escenarios fotografiados, reconstruidos en 3D y renderizados en tu navegador.</p><div id="load-status">Inicializando motor gráfico…</div><div class="loadbar"><i id="load-progress"></i></div><button id="start" disabled>ENTRAR A LA ESCENA</button><small>Captura CC BY 4.0. Prototipo gráfico, no ubicación de Quito ni juego final.</small></div>
+  <header><div class="brand">G<span>7</span><div>WEBGPU LAB<small>GAUSSIAN ENGINE / 0.1</small></div></div><div class="stats"><b id="backend">DETECTANDO GPU</b><span id="fps">-- FPS</span></div><button id="quality">CALIDAD: AUTO</button></header>
+  <aside class="scene-panel"><div class="eyebrow">ENTORNO CAPTURADO</div><h2 id="scene-title">Apartamento</h2><p id="scene-note">Captura fotográfica 3D · 661 mil gaussianas</p><div class="scene-buttons"><button data-scene="apartment" class="selected">APARTAMENTO</button><button data-scene="hall">CENTRO COMUNITARIO</button></div><div class="view-buttons"><button id="mode">EXPLORAR A PIE</button><button id="reset">CENTRAR CÁMARA</button></div></aside>
+  <div class="hint" id="hint">ARRASTRAR PARA GIRAR <i></i> RUEDA PARA ACERCAR <i></i> CAMBIAR A EXPLORAR PARA CAMINAR</div>
+  <div id="touch" class="touch"><div id="joystick"><div id="stick"></div></div><div id="lookzone"></div><button id="run">CORRER</button></div>
+  <footer><span>Capturas: S. Agullo / scbenoit · CC BY 4.0</span><a href="./realism.html">DEMO ANTERIOR</a></footer>
+  <script type="module" src="./src/next/main.js?v=1"></script>
+</body>
+</html>
