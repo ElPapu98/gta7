@@ -3,11 +3,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { fetchVisualAssets } from './asset-stream.js?v=0.7.0';
-import { movement, readGamepad } from './controls.js?v=0.7.0';
-import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.7.0';
-import { createWorld, step, incident } from './simulation.js?v=0.7.0';
-import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.7.0';
+import { fetchVisualAssets } from './asset-stream.js?v=0.8.0';
+import { movement, readGamepad } from './controls.js?v=0.8.0';
+import { createMotor, stepMotor, cameraClearance, shortestTurn } from './character-motor.js?v=0.8.0';
+import { createWorld, step, incident } from './simulation.js?v=0.8.0';
+import { newGame, activeJob, objective, interact, tickGame, distanceTo, saveProgress } from './gameplay.js?v=0.8.0';
 
 const $ = id => document.getElementById(id);
 const canvas = $('scene');
@@ -56,6 +56,9 @@ const greenery = [std('#426b48'), std('#346547'), std('#638354')];
 const geometry = { box: new THREE.BoxGeometry(1, 1, 1), cylinder: new THREE.CylinderGeometry(1, 1, 1, 8), sphere: new THREE.SphereGeometry(1, 9, 7) };
 const buildings = [], vehicles = [], pedestrians = [];
 const highDetailProps=[];
+const districtLights=[];
+const animatedWater=[];
+const plazaObstacles=[];
 let campaign;
 try { campaign = newGame(JSON.parse(localStorage.getItem('gta7-progress-v1') || '{}')); } catch { campaign = newGame(); }
 
@@ -80,6 +83,7 @@ const roadTexture = texture((g,w,h) => {
 });
 roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping; roadTexture.repeat.set(30, 30);
 const roadMat = new THREE.MeshStandardMaterial({ map: roadTexture, roughness: .96 });
+const signatureStone = std('#f0e6d5',.82);
 
 // Asset-backed PBR materials: procedural maps remain usable if assets are unavailable.
 const assetLoader = new THREE.TextureLoader();
@@ -189,13 +193,140 @@ function createBuilding(x,z,w,d,height,style) {
   buildings.push({x,z,w,d});
 }
 
+// Signature location: a deliberately art-directed civic waterfront-style
+// plaza. All dimensions are in metres, with an unobstructed pedestrian court.
+// This is authored geometry, not another randomized building block.
+function createSignaturePlaza(cx,cz) {
+  const stone=signatureStone, limestone=std('#e4d9c7',.68);
+  const bronze=std('#655c48',.34,.72), obsidian=std('#172b31',.19,.42);
+  const pool= new THREE.MeshPhysicalMaterial({color:'#3c8291',metalness:.24,roughness:.12,
+    transparent:true,opacity:.84,clearcoat:1,clearcoatRoughness:.06,depthWrite:false});
+  const warm=new THREE.MeshBasicMaterial({color:'#ffdf9e'});
+  const court=new THREE.Group();court.position.set(cx,0,cz);scene.add(court);
+  box(court,62,.35,62,0,.42,0,stone);
+  // Cut-stone joints, decorative inlays and a generous accessible promenade.
+  for(let v=-28;v<=28;v+=4){
+    box(court,61,.018,.045,0,.609,v,bronze);
+    box(court,.045,.018,61,v,.609,0,bronze);
+  }
+  for(const x of [-27,27])for(const z of [-27,27]){
+    box(court,7,.22,7,x,.65,z,limestone);
+    const planter=cylinder(court,2.6,1.1,x,1.25,z,bronze,20);
+    cylinder(court,2.38,.17,x,1.86,z,std('#544736'),20);
+    tree(court,x,z, .72);
+    planter.castShadow=true;
+  }
+  // A modern cultural pavilion, with a glazed entrance and deep shading fins.
+  box(court,44,1.2,17,0,1.1,19,obsidian,true);
+  box(court,42,11,14,0,7.1,20,glassMat,true);
+  box(court,47,1.35,20,0,13.2,19,limestone,true);
+  box(court,46,1.1,19,0,14.1,19,bronze,true);
+  for(let x=-21;x<=21;x+=3.5){
+    box(court,.33,11.4,1.6,x,7.3,10.8,bronze,true);
+    box(court,.24,9.9,1.1,x,7.4,28.1,bronze);
+  }
+  for(const height of [5.5,9.2]){
+    box(court,43,.16,.2,0,height,10.03,bronze);
+    box(court,43,.16,.2,0,height,27.95,bronze);
+  }
+  for(const x of [-22,22])box(court,1.3,12,18,x,7.1,19,limestone,true);
+  // Interior silhouettes and warm ceiling panels create genuine depth behind
+  // the reflective facade rather than a featureless glass box.
+  const interior=std('#353b38',.9), oak=std('#8c6242',.6);
+  box(court,40,.25,12,0,1.8,20,interior);
+  box(court,38,.25,12,0,11.4,20,interior);
+  for(const x of [-14,-7,0,7,14]){
+    box(court,3.6,.11,4.5,x,11.17,19.5,warm);
+    box(court,2.5,1.1,1.2,x,2.5,23,oak,true);
+  }
+  for(const x of [-17,17]){
+    box(court,3.5,6.6,.6,x,5.7,24,oak,true);
+    box(court,3.7,.2,.75,x,9.1,24,bronze);
+  }
+  box(court,45,.5,2,0,4.1,10,stone,true);
+  box(court,15,.22,2,0,3.9,8.8,bronze);
+  // Entrance canopy with its own warm lighting, visible at dusk and night.
+  box(court,19,.45,6.5,0,5.6,7.8,obsidian,true);
+  for(const x of [-8,0,8]){
+    box(court,1.5,.12,2.5,x,5.3,7.4,warm);
+    const light=new THREE.PointLight('#ffc77b',2.1,19,2);
+    light.position.set(x,5.1,7.5);court.add(light);districtLights.push(light);
+  }
+  // Circular stepped fountain, with translucent animated surface and jets.
+  cylinder(court,8.4,.7,0,.95,-10,limestone,64);
+  plazaObstacles.push({x:cx,z:cz-10,r:8.5});
+  cylinder(court,7.7,.32,0,1.4,-10,obsidian,64);
+  const water=new THREE.Mesh(new THREE.CylinderGeometry(7.35,7.35,.045,64),pool);
+  water.position.set(0,1.59,-10);court.add(water);animatedWater.push(water);
+  cylinder(court,2.1,1.4,0,2.05,-10,stone,32);
+  cylinder(court,1.32,.24,0,2.87,-10,bronze,32);
+  for(let i=0;i<12;i++){
+    const a=i*Math.PI/6,x=Math.sin(a)*5.3,z=-10+Math.cos(a)*5.3;
+    const jet=new THREE.Mesh(new THREE.CylinderGeometry(.025,.075,1.7,8),
+      new THREE.MeshBasicMaterial({color:'#b7e7ee',transparent:true,opacity:.48,depthWrite:false}));
+    jet.position.set(x,2.37,z);court.add(jet);animatedWater.push(jet);
+  }
+  // Sculpture, lighting bollards, seating and planted islands complete the site.
+  const sculpture=new THREE.Mesh(new THREE.TorusKnotGeometry(2.15,.42,90,12,2,3),bronze);
+  sculpture.position.set(-20,4,-9);sculpture.castShadow=true;court.add(sculpture);
+  cylinder(court,2.65,.45,-20,1.05,-9,obsidian,32);
+  plazaObstacles.push({x:cx-20,z:cz-9,r:2.7});
+  for(const side of [-1,1])for(let k=0;k<4;k++){
+    const z=-23+k*8,x=side*25;
+    box(court,4,.3,1.1,x,1.15,z,stone,true);
+    box(court,.18,.8,1.1,x-1.6*side,.8,z,bronze);
+    box(court,.18,.8,1.1,x+1.6*side,.8,z,bronze);
+  }
+  for(const x of [-29,29])for(const z of [-19,-4,11]){
+    cylinder(court,.19,1.15,x,1.22,z,bronze,12);
+    const glow=new THREE.Mesh(new THREE.SphereGeometry(.23,12,8),warm);
+    glow.position.set(x,1.9,z);court.add(glow);
+  }
+  // Street-facing vendor stalls animate the architectural edge at human scale.
+  for(const x of [-16,16]){
+    box(court,5.5,.24,3.3,x,3.8,-27,bronze,true);
+    for(const leg of [-2.35,2.35])for(const side of [-1.25,1.25])
+      box(court,.12,3,.12,x+leg,2.2,-27+side,bronze);
+    box(court,4.2,1.15,1.5,x,1.55,-27,oak,true);
+    box(court,4.6,.14,1.8,x,2.18,-27,limestone);
+    for(let k=0;k<7;k++){
+      const item=new THREE.Mesh(new THREE.SphereGeometry(.19,8,6),
+        std(k%2?'#c46b42':'#88a05e',.65));
+      item.position.set(x-1.65+k*.55,2.46,-27);court.add(item);
+    }
+  }
+  // Irregular shallow rainwater along the road border; environment lighting
+  // gives the surface a subdued reflection without expensive planar mirrors.
+  const puddle=new THREE.MeshPhysicalMaterial({color:'#46565c',metalness:.52,
+    roughness:.14,clearcoat:1,clearcoatRoughness:.08,transparent:true,opacity:.7,
+    depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
+  for(const [px,pz,sx,sz] of [[-31,-23,2.5,1.1],[31,-17,3.4,1.3],[-31,5,2.1,.8],[30,29,3,1.2]]){
+    const waterPatch=new THREE.Mesh(new THREE.CircleGeometry(1,36),puddle);
+    waterPatch.rotation.x=-Math.PI/2;
+    waterPatch.position.set(px,.665,pz);
+    waterPatch.scale.set(sx,sz,1);court.add(waterPatch);
+  }
+  const facadeLabel=texture((g,w,h)=>{
+    g.fillStyle='#101f24';g.fillRect(0,0,w,h);
+    g.fillStyle='#dec997';g.textAlign='center';g.textBaseline='middle';
+    g.font='600 53px sans-serif';g.fillText('CENTRO CULTURAL · BAHÍA',w/2,h/2);
+  },1024,128);
+  const title=new THREE.Mesh(new THREE.PlaneGeometry(22,2.75),
+    new THREE.MeshBasicMaterial({map:facadeLabel,side:THREE.DoubleSide}));
+  title.position.set(0,10.8,10.02);court.add(title);
+  // Collision footprint is limited to the pavilion so the court is playable.
+  buildings.push({x:cx,z:cz+19,w:46,d:19});
+}
+
 for(let i=-radius;i<radius;i++)for(let j=-radius;j<radius;j++){
   const x=(i+.5)*spacing,z=(j+.5)*spacing;
   const block=spacing-streetWidth-5;
   box(scene,block,.32,block,x,.21,z,pavement);
   const commercial=Math.abs(i)<2&&Math.abs(j)<2;
   const park=(i*11+j*7+32)%13===0;
-  if(park){
+  if(i===0&&j===0){
+    createSignaturePlaza(x,z);
+  }else if(park){
     box(scene,block-8,.15,block-8,x,.46,z,std('#557a54'));
     for(let t=0;t<10;t++)tree(scene,x+rand(-27,27),z+rand(-27,27),rand(.65,1.1));
     box(scene,block-8,.12,2,x,.58,z,pavement);box(scene,2,.12,block-8,x,.58,z,pavement);
@@ -415,7 +546,8 @@ const angleDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 
 function blocked(x,z){
   if(Math.abs(x)>390 || Math.abs(z)>390)return true;
-  return buildings.some(b=>Math.abs(x-b.x)<b.w/2+1.1&&Math.abs(z-b.z)<b.d/2+1.1);
+  return buildings.some(b=>Math.abs(x-b.x)<b.w/2+1.1&&Math.abs(z-b.z)<b.d/2+1.1)
+    ||plazaObstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r+1.1);
 }
 function move(dt, input){
   const obj=active();
@@ -514,6 +646,7 @@ $('time').onclick=()=>{timeMode=(timeMode+1)%3;
   sky.material.uniforms.sunPosition.value.set(...[[-.58,.47,-.65],[-.5,.88,-.2],[-.57,-.08,-.6]][timeMode]).normalize();
   sky.material.uniforms.rayleigh.value=timeMode===2?.15:2.2;
   ambient.intensity=timeMode===2?.45:1.45;
+  for(const light of districtLights)light.intensity=timeMode===2?3.7:timeMode===0?2.1:.8;
   $('time').textContent=['☀ ATARDECER','☀ MEDIODÍA','☾ NOCHE'][timeMode];
 };
 $('traffic').onclick=()=>{trafficEnabled=!trafficEnabled;$('traffic').textContent='♢ TRÁFICO: '+(trafficEnabled?'ON':'OFF');};
@@ -579,6 +712,11 @@ function animate(now){
     }else pedestrians[i].position.set(x,0,z);
   }
   diamond.rotation.y+=dt*1.2;diamond.position.y=7+Math.sin(now*.002)*.7;ring.rotation.z+=dt*.6;
+  for(let i=0;i<animatedWater.length;i++){
+    const surface=animatedWater[i];
+    if(i===0){surface.position.y=1.59+Math.sin(now*.0017)*.025;surface.rotation.y+=dt*.024;}
+    else surface.scale.y=.8+Math.sin(now*.003+i*.8)*.2;
+  }
   mapTimer+=dt;if(mapTimer>.2){updateMap();refreshMission();mapTimer=0;}
   renderer.render(scene,camera);requestAnimationFrame(animate);
 }
@@ -658,9 +796,10 @@ async function bootVisuals() {
     }
     $('loadMessage').textContent = 'Decodificando materiales y vehículo 3D…';
     const tasks = [
-      loadSurface(roadMat, 'asphalt-color.jpg', 'asphalt-normal.jpg', 55, urls),
+      loadSurface(roadMat, 'weathered-asphalt-color.jpg', 'weathered-asphalt-normal.jpg', 55, urls),
       loadSurface(pavement, 'pavement-color.jpg', 'pavement-normal.jpg', 9, urls),
       loadSurface(concrete, 'concrete-color.jpg', 'concrete-normal.jpg', 4, urls),
+      loadSurface(signatureStone, 'stone-brick-color.jpg', 'stone-brick-normal.jpg', 7, urls),
     ];
     if (urls.has('sunset.hdr')) tasks.push(new RGBELoader().loadAsync(urls.get('sunset.hdr')).then(hdr => {
       hdr.mapping = THREE.EquirectangularReflectionMapping;

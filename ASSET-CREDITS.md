@@ -7,6 +7,8 @@ The original game code and procedural district remain separate from the followin
 | `asphalt-color.jpg`, `asphalt-normal.jpg` | [Poly Haven: Asphalt 01](https://polyhaven.com/a/asphalt_01) | CC0 1.0 | Charlotte Baglioni (photography), Dario Barresi (processing) |
 | `pavement-color.jpg`, `pavement-normal.jpg` | [Poly Haven: Floor Pavement](https://polyhaven.com/a/floor_pavement) | CC0 1.0 | Poly Haven; see current asset page for authors |
 | `concrete-color.jpg`, `concrete-normal.jpg` | [Poly Haven: Concrete](https://polyhaven.com/a/concrete) | CC0 1.0 | Poly Haven; see current asset page for authors |
+| `weathered-asphalt-color.jpg`, `weathered-asphalt-normal.jpg` | [Poly Haven: Asphalt 02](https://polyhaven.com/a/asphalt_02) | CC0 1.0 | Rob Tuytel |
+| `stone-brick-color.jpg`, `stone-brick-normal.jpg` | [Poly Haven: Concrete Brick Wall 001](https://polyhaven.com/a/concrete_brick_wall_001) | CC0 1.0 | Dimitrios Savva (photography), Rico Cilliers (processing) |
 | `sunset.hdr` | [Poly Haven: Industrial Sunset (Pure Sky)](https://polyhaven.com/a/industrial_sunset_puresky) | CC0 1.0 | Poly Haven; see current asset page for authors |
 | `concept-car.glb` | [Khronos glTF Sample Assets: CarConcept](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) | CC BY 4.0 | © 2024 Darmstadt Graphics Group GmbH; Eric Chadwick — model and textures. Logos carry independent Khronos trademark terms. |
 | `cesium-man.glb` | [Khronos glTF Sample Assets: CesiumMan](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan) | CC BY 4.0 | © 2017 Cesium, model, texture and skeletal animation. Cesium marks carry separate trademark terms. |

@@ -1,5 +1,17 @@
 # GTA7.WASM — Living City Lab
 
+**Escenario autoral — Plaza Bahía (versión 0.8):** el bloque
+central noreste incorpora una plaza cívica de 62 × 62 m con pabellón cultural
+acristalado, marquesina iluminada, pavimento con juntas y apliques metálicos,
+fuente animada, escultura, jardineras, árboles y bancos. El pabellón y los
+elementos principales tienen colisión para el personaje y el vehículo. La
+escena utiliza nuevos mapas CC0 de asfalto envejecido 2K y bloque de concreto
+2K, además del sistema de materiales PBR y el HDRI descargados por el
+proyecto, y dispone de iluminación adaptada a las tres franjas horarias.
+Se llega caminando desde el origen hacia el noreste, aproximadamente a
+`x=46, z=46`. Es un *set piece* completo dentro de la ciudad existente,
+**no una conversión de toda la ciudad a gráficos fotorrealistas AAA**.
+
 > **Investigación de streaming (ADR-001):** [arquitectura, plan de assets hiperrealistas y requisitos de `rangeplay`](docs/ADR-001-rangeplay.md). Hay un precheck de cabeceras con `npm run doctor -- https://HOST/` y un archivo `_headers` para hosts compatibles. **La preview actual aún no ejecuta rangeplay; los nuevos recursos PBR no convierten por sí solos el distrito procedural en una ciudad fotorrealista.**
 
 **Visual milestone 0.3:** la construcción de Pages descarga materiales PBR de asfalto, pavimento y concreto, un HDRI real y un vehículo glTF detallado. El prototipo sigue siendo una ciudad procedural estilizada, no un entorno AAA; ahora utiliza algunos recursos fotográficos reales y una malla de vehículo de producción. Véase [licencias y créditos](ASSET-CREDITS.md).
