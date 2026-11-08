@@ -1,5 +1,15 @@
 # GTA7.WASM — Living City Lab
 
+**Realism Lab / The Street:** la portada publicada ahora presenta una escena
+urbana compacta independiente de la cartografía OSM: asfalto y aceras PBR,
+fachadas modulares, coches y mobiliario de Poly Haven CC0, iluminación HDR,
+controles a pie en primera persona y perfil ULTRA con SSAO. Es un *vertical
+slice* artístico para comparar fidelidad antes de ampliar el mundo; la antigua
+escena OSM permanece disponible en `classic.html` y `v0.16.0.html`. No se
+afirma que sea un clon de Unreal Engine ni que los edificios representen
+arquitectura real de Quito. El pipeline de Pages descarga los assets reales
+durante el despliegue.
+
 **Visual lab 0.16:** un perfil ULTRA optativo en equipos de escritorio
 ejecuta SSAO (oclusión ambiental en espacio de pantalla) y bloom moderado
 mediante EffectComposer de Three.js r170; ALTA y MEDIA conservan el render
